@@ -17,7 +17,8 @@
     </script>
     <style>
         .sidebar {
-            height: 150px;
+            min-height: 0px;
+            max-height: 150px;
             overflow-y: auto;
         }
     </style>
@@ -45,52 +46,79 @@
                 </div>
                 <div class="card mt-2">
                     <div class="card-header">
-                        <h4>Logs</h5>
+                        <h4>Logs</h4>
                     </div>
                     <div class="card-body sidebar">
                         <p v-for="log in logs">{{ log }}</p>
                     </div>
                 </div>
-            </div>
-            <div class="col-9">
-                <div class="row">
-                    <div class="col-4">
-                        <div class="card mt-2">
-                            <div class="card-header">
-                                <h4>Robot model</h4>
-                            </div>
-                            <div class="card-body">
-                            </div>
-                        </div>
+                <div class="card mt-2">
+                    <div class="card-header">
+                        <h4>Camera</h>
                     </div>
-                    <div class="col-8">
-                        <div class="card mt-2">
-                            <div class="card-header">
-                                <h4>Generated Map</h4>
-                            </div>
-                            <div class="card-body">
-                            </div>
-                        </div>
+                    <div class="card-body">
                     </div>
                 </div>
-                <div class="row">
-                    <div class="col-4">
-                        <div class="card mt-2">
-                            <div class="card-header">
-                                <h4>Camera</h4>
-                            </div>
-                            <div class="card-body">
-                            </div>
-                        </div>
+            </div>
+            <div class="col-3 text-center">
+                <div class="card mt-2">
+                    <div class="card-header">
+                        <h4>Robot model</h4>
                     </div>
-                    <div class="col-8">
-                        <div class="card mt-2">
-                            <div class="card-header">
-                                <h4>Commands</h4>
-                            </div>
-                            <div class="card-body">
-                            </div>
-                        </div>
+                    <div class="card-body">
+                    </div>
+                </div>
+                <div class="card mt-2">
+                    <div class="card-header">
+                        <h4>Joystick Control</h4>
+                    </div>
+                    <div class="card-body">
+                    </div>
+                </div>
+                <div class="card mt-2">
+                    <div class="card-header">
+                        <h4>Joystick Values</h4>
+                    </div>
+                    <div class="card-body">
+                    </div>
+                </div>
+            </div>
+            <div class="col-3 text-center">
+                <div class="card mt-2">
+                    <div class="card-header">
+                        <h4>Generated Map</h4>
+                    </div>
+                    <div class="card-body">
+                    </div>
+                </div>
+                <div class="card mt-2">
+                    <div class="card-header">
+                        <h4>Current Pose</h4>
+                    </div>
+                    <div class="card-body">
+                    </div>
+                </div>
+                <div class="card mt-2">
+                    <div class="card-header">
+                        <h4>Waypoint Status</h4>
+                    </div>
+                    <div class="card-body">
+                    </div>
+                </div>
+            </div>
+            <div class="col-3 text-center">
+                <div class="card mt-2">
+                    <div class="card-header">
+                        <h4>Predefined Waypoints</h4>
+                    </div>
+                    <div class="card-body">
+                    </div>
+                </div>
+                <div class="card mt-2">
+                    <div class="card-header">
+                        <h4>Goto Waypoint</h4>
+                    </div>
+                    <div class="card-body">
                     </div>
                 </div>
             </div>
