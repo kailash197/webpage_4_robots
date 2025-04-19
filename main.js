@@ -20,6 +20,7 @@ var app = new Vue({
                 this.logs.unshift((new Date()).toTimeString() + ' - Connected!')
                 this.connected = true
                 this.loading = false
+                this.setCamera()
             })
             this.ros.on('error', (error) => {
                 this.logs.unshift((new Date()).toTimeString() + ` - Error: ${error}`)
@@ -28,10 +29,26 @@ var app = new Vue({
                 this.logs.unshift((new Date()).toTimeString() + ' - Disconnected!')
                 this.connected = false
                 this.loading = false
+                document.getElementById('divCamera').innerHTML = ''
             })
         },
         disconnect: function() {
             this.ros.close()
+        },
+        setCamera: function() {
+            let without_wss = this.rosbridge_address.split('wss://')[1]
+            console.log(without_wss)
+            let domain = without_wss.split('/')[0] + '/' + without_wss.split('/')[1]
+            console.log(domain)
+            let host = domain + '/cameras'
+            let viewer = new MJPEGCANVAS.Viewer({
+                divID: 'divCamera',
+                host: host,
+                width: 320,
+                height: 240,
+                topic: '/camera/image_raw',
+                ssl: true,
+            })
         },
     },
     mounted() {
