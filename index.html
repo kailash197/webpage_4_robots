@@ -23,7 +23,9 @@
             <div class="col-3 text-center">
                 <div class="card mt-2">
                     <div class="card-body">
-                        <h3>Connection status</h3>
+                        <div class="card-header">
+                            <h3>Connection status</h3>
+                        </div>
                         <p class="text-danger" v-if="!connected">Not connected!</p>
                         <p class="text-success" v-if="connected">Connected!</p>
                         <label>ROSBridge address</label>
