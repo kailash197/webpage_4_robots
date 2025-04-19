@@ -6,7 +6,7 @@ var app = new Vue({
         ros: null,
         logs: [],
         loading: false,
-        rosbridge_address: 'wss://i-077c42467f9b32c8f.robotigniteacademy.com/rosbridge/',
+        rosbridge_address: 'wss://i-0be21347c76a857a3.robotigniteacademy.com/815fe13e-83f2-4349-9cde-b087a80693c3/rosbridge/',
         port: '9090',
     },
     // helper methods to connect to ROS
