@@ -6,7 +6,7 @@ var app = new Vue({
         ros: null,
         logs: [],
         loading: false,
-        rosbridge_address: 'wss://i-0f39a3e403d1ff9e5.robotigniteacademy.com/f46bc3e8-470c-4a94-bf42-e4fc0dee7b1a/rosbridge/',
+        rosbridge_address: 'wss://i-0ea0270f46e7f304b.robotigniteacademy.com/ae712ee2-cc72-4059-a83e-307c84cd5b3e/rosbridge/',
         port: '9090',
         // 3D stuff
         viewer: null,
@@ -32,6 +32,9 @@ var app = new Vue({
         },
         // publisher
         pubInterval: null,
+        // ODOM subscriber data
+        position: { x: 0, y: 0, z: 0, },
+        yaw: 0,
     },
     // helper methods to connect to ROS
     methods: {
@@ -47,6 +50,7 @@ var app = new Vue({
                 this.setCamera()
                 this.setup3DViewer()
                 this.pubInterval = setInterval(this.publish, 100)
+                this.setupCurrentPose()
             })
             this.ros.on('error', (error) => {
                 this.logs.unshift((new Date()).toTimeString() + ` - Error: ${error}`)
@@ -58,6 +62,9 @@ var app = new Vue({
                 document.getElementById('divCamera').innerHTML = ''
                 this.unset3DViewer()
                 clearInterval(this.pubInterval)
+                // ODOM subscriber data
+                this.position = { x: 0, y: 0, z: 0, }
+                this.yaw = 0
             })
         },
         disconnect: function() {
@@ -168,6 +175,23 @@ var app = new Vue({
         resetJoystickVals() {
             this.joystick.vertical = 0
             this.joystick.horizontal = 0
+        },
+        setupCurrentPose() {
+            let topic = new ROSLIB.Topic({
+                ros: this.ros,
+                name: '/odom',
+                messageType: 'nav_msgs/Odometry'
+            })
+            topic.subscribe((message) => {
+                this.position = message.pose.pose.position
+
+                // Convert quaternion to yaw
+                const q = message.pose.pose.orientation
+                const siny_cosp = 2 * (q.w * q.z + q.x * q.y)
+                const cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
+                const yaw_rad = Math.atan2(siny_cosp, cosy_cosp)
+                this.yaw = yaw_rad * 180 / Math.PI
+            })
         },
     },
     mounted() {

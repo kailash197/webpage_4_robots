@@ -134,6 +134,15 @@
                         <h4>Current Pose</h4>
                     </div>
                     <div class="card-body">
+                        <p>
+                            <span>X: {{ position.x.toFixed(2) }} m</span>
+                            <br>
+                            <span>Y: {{ position.y.toFixed(2) }} m</span>
+                            <br>
+                            <span>Z: {{ position.z.toFixed(2) }} m</span>
+                            <br>
+                            <span>Yaw: {{ yaw.toFixed(2) }} &deg;</span>
+                        </p>
                     </div>
                 </div>
                 <div class="card mt-2">
