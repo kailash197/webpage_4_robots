@@ -143,25 +143,32 @@
                 </div>
                 <div class="card mt-2">
                     <div class="card-header">
-                        <h4>Current Pose</h4>
+                        <h5>Current Pose</h5>
                     </div>
                     <div class="card-body">
                         <p>
-                            <span>X: {{ position.x.toFixed(2) }} m</span>
-                            <br>
-                            <span>Y: {{ position.y.toFixed(2) }} m</span>
-                            <br>
-                            <span>Z: {{ position.z.toFixed(2) }} m</span>
-                            <br>
+                            <span>Position: [ {{ position.x.toFixed(2) }}, {{ position.y.toFixed(2) }}, {{
+                                position.z.toFixed(2) }} ] m</span>
+                            <br />
                             <span>Yaw: {{ yaw.toFixed(2) }} &deg;</span>
                         </p>
                     </div>
                 </div>
                 <div class="card mt-2">
                     <div class="card-header">
-                        <h4>Waypoint Status</h4>
+                        <h5>Waypoint Status</h5>
                     </div>
                     <div class="card-body">
+                        <div>
+                            <span>Feedback Position: [ {{ action.feedback.position.x.toFixed(2) }}, {{
+                                action.feedback.position.y.toFixed(2) }} ] m</span><br>
+                            <span>Feedback State: {{ action.feedback.state }} </span><br>
+                            <span>Success: {{ action.result.success }}</span>
+                        </div>
+                        <hr />
+                        <div class="card-body">
+                            <p>Status: {{ action.status.text }}</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -178,6 +185,19 @@
                         <h4>Goto Waypoint</h4>
                     </div>
                     <div class="card-body">
+                        <div>
+                            <div>
+                                <label>X</label>
+                                <input type="number" v-model.number="action.goal.position.x" />
+                            </div>
+                            <div>
+                                <label>Y</label>
+                                <input type="number" v-model.number="action.goal.position.y" />
+                            </div>
+                            <button :disabled="!connected || action.status.status == 1" @click="sendGoal">Start</button>
+                            <button :disabled="!connected || ![1].includes(action.status.status)"
+                                @click="cancelGoal">Cancel</button>
+                        </div>
                     </div>
                 </div>
             </div>

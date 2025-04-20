@@ -41,6 +41,14 @@ var app = new Vue({
         interval: null,
         scale: 0.14,
         shift: 0.0,
+        //Waypoint Action Server
+        goal: null,
+        action: {
+            goal: { position: {x: 0, y: 0, z: 0} },
+            feedback: { position: {x: 0, y: 0, z: 0}, state: 'idle' },
+            result: { success: false },
+            status: { status: 0, text: '' },
+        }
     },
     watch: {
         scale(val) {
@@ -85,6 +93,7 @@ var app = new Vue({
         },
         disconnect: function() {
             this.ros.close()
+            this.goal = null
         },
         setCamera: function() {
             let without_wss = this.rosbridge_address.split('wss://')[1]
@@ -243,6 +252,36 @@ var app = new Vue({
         },
         unsetMapViewer() {
             document.getElementById('generatedMap').innerHTML = ''
+        },
+        sendGoal: function() {
+            let actionClient = new ROSLIB.ActionClient({
+                ros : this.ros,
+                serverName : '/tortoisebot_as',
+                actionName : 'course_web_dev_ros/WaypointActionAction'
+            })
+
+            this.goal = new ROSLIB.Goal({
+                actionClient : actionClient,
+                goalMessage: {
+                    ...this.action.goal
+                }
+            })
+
+            this.goal.on('status', (status) => {
+                this.action.status = status
+            })
+
+            this.goal.on('feedback', (feedback) => {
+                this.action.feedback = feedback
+            })
+
+            this.goal.on('result', (result) => {
+                this.action.result = result
+            })
+            this.goal.send()
+        },
+        cancelGoal: function() {
+            this.goal.cancel()
         },
     },
     mounted() {
