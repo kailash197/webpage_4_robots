@@ -24,6 +24,34 @@
             max-height: 150px;
             overflow-y: auto;
         }
+
+        #dragstartzone {
+            position: relative;
+            display: inline-block;
+            width: 200px;
+            height: 200px;
+            border: 1px solid #333;
+            border-radius: 50%;
+            z-index: 10;
+            -moz-user-select: -moz-none;
+            -khtml-user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #dragCircle {
+            position: absolute;
+            z-index: 9;
+            border: 1px solid transparent;
+            border-radius: 50%;
+            background-color: rgba(0, 0, 0, 30%);
+            -moz-user-select: -moz-none;
+            -khtml-user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #dragCircle:hover {
+            background-color: lightcoral;
+        }
     </style>
 </head>
 
@@ -78,6 +106,9 @@
                         <h4>Joystick Control</h4>
                     </div>
                     <div class="card-body">
+                        <div id="dragstartzone" @mousedown="startDrag" @mousemove="doDrag">
+                        </div>
+                        <div id="dragCircle" :style="dragCircleStyle"></div>
                     </div>
                 </div>
                 <div class="card mt-2">
@@ -85,6 +116,8 @@
                         <h4>Joystick Values</h4>
                     </div>
                     <div class="card-body">
+                        <p>Linear Vel: {{ joystick.vertical.toFixed(3) }}</p>
+                        <p>Angular Vel: {{ (-joystick.horizontal).toFixed(3) }}</p>
                     </div>
                 </div>
             </div>
