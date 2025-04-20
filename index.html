@@ -19,6 +19,9 @@
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
     <!-- Camera -->
     <script type="text/javascript" src="./libs/mjpegcanvas.min.js"></script>
+    <!--Map View-->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/easeljs/lib/easeljs.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/ros2d/build/ros2d.min.js"></script>
     <style>
         .sidebar {
             max-height: 150px;
@@ -127,7 +130,16 @@
                         <h4>Generated Map</h4>
                     </div>
                     <div class="card-body">
+                        <div id="generatedMap"></div>
                     </div>
+                    <div>
+                        <label>Scale: {{ scale.toFixed(2) }}</label>
+                        <input type="range" min="0.05" max="1.0" step="0.01" v-model.number="scale">
+
+                        <!-- <label>Shift: {{ shift.toFixed(2) }}</label>
+                        <input type="range" min="-5.0" max="5.0" step="0.1" v-model.number="shift"> -->
+                    </div>
+
                 </div>
                 <div class="card mt-2">
                     <div class="card-header">

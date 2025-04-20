@@ -35,6 +35,20 @@ var app = new Vue({
         // ODOM subscriber data
         position: { x: 0, y: 0, z: 0, },
         yaw: 0,
+        //Map Viewer
+        mapViewer: null,
+        mapGridClient: null,
+        interval: null,
+        scale: 0.14,
+        shift: 0.0,
+    },
+    watch: {
+        scale(val) {
+            this.updateMapTransform()
+        },
+        shift(val) {
+            this.updateMapTransform()
+        }
     },
     // helper methods to connect to ROS
     methods: {
@@ -51,6 +65,7 @@ var app = new Vue({
                 this.setup3DViewer()
                 this.pubInterval = setInterval(this.publish, 100)
                 this.setupCurrentPose()
+                this.setupMapViewer()
             })
             this.ros.on('error', (error) => {
                 this.logs.unshift((new Date()).toTimeString() + ` - Error: ${error}`)
@@ -65,6 +80,7 @@ var app = new Vue({
                 // ODOM subscriber data
                 this.position = { x: 0, y: 0, z: 0, }
                 this.yaw = 0
+                this.unsetMapViewer()
             })
         },
         disconnect: function() {
@@ -193,9 +209,49 @@ var app = new Vue({
                 this.yaw = yaw_rad * 180 / Math.PI
             })
         },
+        setupMapViewer() {
+            this.mapViewer = new ROS2D.Viewer({
+                divID: 'generatedMap',
+                width: 420,
+                height: 360
+            })
+
+            this.mapGridClient = new ROS2D.OccupancyGridClient({
+                ros: this.ros,
+                rootObject: this.mapViewer.scene,
+                continuous: true,
+            })
+
+            this.mapGridClient.on('change', () => {
+                const grid = this.mapGridClient.currentGrid
+                this.mapViewer.scaleToDimensions(grid.width * this.scale, grid.height * this.scale)
+                this.mapViewer.shift(
+                    (grid.pose.position.x + this.shift) * this.scale,
+                    (grid.pose.position.y - this.shift) * this.scale
+                )
+            })
+        },
+        updateMapTransform() {
+            if (this.mapGridClient && this.mapViewer && this.mapGridClient.currentGrid) {
+                const grid = this.mapGridClient.currentGrid
+                this.mapViewer.scaleToDimensions(grid.width * this.scale, grid.height * this.scale)
+                this.mapViewer.shift(
+                    (grid.pose.position.x + this.shift) * this.scale,
+                    (grid.pose.position.y - this.shift) * this.scale
+                )
+            }
+        },
+        unsetMapViewer() {
+            document.getElementById('generatedMap').innerHTML = ''
+        },
     },
     mounted() {
         // page is ready
         window.addEventListener('mouseup', this.stopDrag)
+        this.interval = setInterval(() => {
+            if (this.ros != null && this.ros.isConnected) {
+                this.ros.getNodes((data) => { }, (error) => { })
+            }
+        }, 10000)
     },
 })
