@@ -48,7 +48,21 @@ var app = new Vue({
             feedback: { position: {x: 0, y: 0, z: 0}, state: 'idle' },
             result: { success: false },
             status: { status: 0, text: '' },
-        }
+        },
+        //Predefined waypoints
+        waypoints: [
+            { x: +0.14, y: -0.50 }, //WP0
+            { x: +0.64, y: -0.50 }, //WP1
+            { x: +0.64, y: -0.00 }, //WP2
+            { x: +0.64, y: +0.50 }, //WP3
+            { x: +0.23, y: +0.50 }, //WP4
+            { x: +0.23, y: +0.00 }, //WP5
+            { x: -0.10, y: +0.00 }, //WP6
+            { x: -0.16, y: +0.50 }, //WP7
+            { x: -0.64, y: +0.50 }, //WP8
+            { x: -0.16, y: -0.50 }, //WP9
+            { x: -0.45, y: -0.50 }, //WP10
+        ],
     },
     watch: {
         scale(val) {
@@ -282,6 +296,13 @@ var app = new Vue({
         },
         cancelGoal: function() {
             this.goal.cancel()
+        },
+        gotoWaypoint(index) {
+            const wp = this.waypoints[index];
+            if (!wp) return;
+            this.action.goal.position.x = wp.x;
+            this.action.goal.position.y = wp.y;
+            this.sendGoal();
         },
     },
     mounted() {
