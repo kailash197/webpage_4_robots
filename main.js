@@ -6,7 +6,7 @@ var app = new Vue({
         ros: null,
         logs: [],
         loading: false,
-        rosbridge_address: 'wss://i-0ea0270f46e7f304b.robotigniteacademy.com/ae712ee2-cc72-4059-a83e-307c84cd5b3e/rosbridge/',
+        rosbridge_address: 'ws://localhost:9090',
         port: '9090',
         // 3D stuff
         viewer: null,
@@ -110,19 +110,32 @@ var app = new Vue({
             this.goal = null
         },
         setCamera: function() {
-            let without_wss = this.rosbridge_address.split('wss://')[1]
-            console.log(without_wss)
-            let domain = without_wss.split('/')[0] + '/' + without_wss.split('/')[1]
-            console.log(domain)
-            let host = domain + '/cameras'
-            let viewer = new MJPEGCANVAS.Viewer({
-                divID: 'divCamera',
-                host: host,
-                width: 320,
-                height: 240,
-                topic: '/camera/image_raw',
-                ssl: true,
-            })
+            // Handle both ws:// and wss:// cases
+            const protocol = this.rosbridge_address.startsWith('wss://') ? 'wss://' : 'ws://';
+            const without_protocol = this.rosbridge_address.split(protocol)[1];
+
+            // Extract host:port (remove any path components)
+            const domain_parts = without_protocol.split('/')[0].split(':');
+            const hostname = domain_parts[0];
+            const port = domain_parts[1] || (protocol === 'wss://' ? 443 : 80);
+
+            // Web Video Server typically runs on port 8080 (different from ROSbridge port)
+            const mjpeg_host = `${hostname}:11315`;  // Use your web video server port
+
+            console.log('MJPEG Stream Host:', mjpeg_host);
+
+            try {
+                new MJPEGCANVAS.Viewer({
+                    divID: 'divCamera',
+                    host: mjpeg_host,
+                    width: 320,
+                    height: 240,
+                    topic: '/camera/image_raw',  // '/raspicam_node/image',
+                    ssl: protocol === 'wss://'
+                });
+            } catch (error) {
+                console.error('Failed to initialize camera viewer:', error);
+            }
         },
         setup3DViewer() {
             this.viewer = new ROS3D.Viewer({
