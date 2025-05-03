@@ -44,8 +44,8 @@ var app = new Vue({
         //Waypoint Action Server
         goal: null,
         action: {
-            goal: { position: {x: 0, y: 0, z: 0} },
-            feedback: { position: {x: 0, y: 0, z: 0}, state: 'idle' },
+            goal: { position: { x: 0, y: 0, z: 0 } },
+            feedback: { position: { x: 0, y: 0, z: 0 }, state: 'idle' },
             result: { success: false },
             status: { status: 0, text: '' },
         },
@@ -72,7 +72,7 @@ var app = new Vue({
     },
     // helper methods to connect to ROS
     methods: {
-        connect: function() {
+        connect: function () {
             this.loading = true
             this.ros = new ROSLIB.Ros({
                 url: this.rosbridge_address
@@ -103,38 +103,90 @@ var app = new Vue({
                 this.unsetMapViewer()
             })
         },
-        disconnect: function() {
+        disconnect: function () {
             this.ros.close()
             this.goal = null
         },
-        setCamera: function() {
-            // Handle both ws:// and wss:// cases
-            const protocol = this.rosbridge_address.startsWith('wss://') ? 'wss://' : 'ws://';
-            const without_protocol = this.rosbridge_address.split(protocol)[1];
-
-            // Extract host:port (remove any path components)
-            const domain_parts = without_protocol.split('/')[0].split(':');
-            const hostname = domain_parts[0];
-            const port = domain_parts[1] || (protocol === 'wss://' ? 443 : 80);
-
-            // Web Video Server typically runs on port 8080 (different from ROSbridge port)
-            const mjpeg_host = `${hostname}:11315`;  // Use your web video server port
-
-            console.log('MJPEG Stream Host:', mjpeg_host);
-
+        setCamera: function () {
             try {
-                new MJPEGCANVAS.Viewer({
-                    divID: 'divCamera',
-                    host: mjpeg_host,
-                    width: 320,
-                    height: 240,
-                    topic: '/camera/image_raw',  // '/raspicam_node/image',
-                    ssl: protocol === 'wss://'
-                });
+                // Handle both ws:// and wss:// cases
+                const isSecure = this.rosbridge_address.startsWith('wss://');
+                const protocol = isSecure ? 'wss://' : 'ws://';
+                const without_protocol = this.rosbridge_address.split(protocol)[1];
+
+                // Extract domain components
+                const parts = without_protocol.split('/');
+                let hostname = parts[0];  // Gets host:port
+
+                // Construct the camera host URL
+                const base_path = parts.length > 1 ? parts[1] : '';  // Gets additional path if exists
+                let host = `${hostname}/${base_path ? base_path + '/' : ''}cameras`;
+
+                // For non-secure connections, use specific port 11315
+                if (!isSecure) {
+                    const domainParts = hostname.split(':');
+                    host = `${domainParts[0]}:11315`;
+                }
+                console.log('Camera stream host:', host);
+
+
+                // List of common camera topics to try
+                const cameraTopics = [
+                    '/camera/image_raw',
+                    '/raspicam_node/image'
+                ];
+
+                // Try each topic until one works
+                for (const topic of cameraTopics) {
+                    try {
+                        new MJPEGCANVAS.Viewer({
+                            divID: 'divCamera',
+                            host: host,
+                            width: 320,
+                            height: 240,
+                            topic: topic,
+                            ssl: isSecure
+                        });
+                        console.log(`Successfully connected to camera topic: ${topic}`);
+                        return; // Exit if successful
+                    } catch (error) {
+                        console.log(`Failed to connect to camera topic ${topic}, trying next...`);
+                    }
+                }
+
+                console.error('Failed to initialize camera viewer: No working camera topics found');
             } catch (error) {
-                console.error('Failed to initialize camera viewer:', error);
+                console.error('Error setting up camera:', error);
             }
         },
+        // setCamera: function () {
+        //     // Handle both ws:// and wss:// cases
+        //     const protocol = this.rosbridge_address.startsWith('wss://') ? 'wss://' : 'ws://';
+        //     const without_protocol = this.rosbridge_address.split(protocol)[1];
+
+        //     // Extract host:port (remove any path components)
+        //     const domain_parts = without_protocol.split('/')[0].split(':');
+        //     const hostname = domain_parts[0];
+        //     const port = domain_parts[1] || (protocol === 'wss://' ? 443 : 80);
+
+        //     // Web Video Server typically runs on port 8080 (different from ROSbridge port)
+        //     const mjpeg_host = `${hostname}:11315`;  // Use your web video server port
+
+        //     console.log('MJPEG Stream Host:', mjpeg_host);
+
+        //     try {
+        //         new MJPEGCANVAS.Viewer({
+        //             divID: 'divCamera',
+        //             host: mjpeg_host,
+        //             width: 320,
+        //             height: 240,
+        //             topic: '/camera/image_raw',  // '/raspicam_node/image',
+        //             ssl: protocol === 'wss://'
+        //         });
+        //     } catch (error) {
+        //         console.error('Failed to initialize camera viewer:', error);
+        //     }
+        // },
         setup3DViewer() {
             this.viewer = new ROS3D.Viewer({
                 background: '#cccccc',
@@ -147,7 +199,7 @@ var app = new Vue({
 
             // Add a grid.
             this.viewer.addObject(new ROS3D.Grid({
-                color:'#0181c4',
+                color: '#0181c4',
                 cellSize: 0.5,
                 num_cells: 20
             }))
@@ -176,7 +228,7 @@ var app = new Vue({
         unset3DViewer() {
             document.getElementById('div3DViewer').innerHTML = ''
         },
-        publish: function() {
+        publish: function () {
             let topic = new ROSLIB.Topic({
                 ros: this.ros,
                 name: '/cmd_vel',
@@ -278,15 +330,15 @@ var app = new Vue({
         unsetMapViewer() {
             document.getElementById('generatedMap').innerHTML = ''
         },
-        sendGoal: function() {
+        sendGoal: function () {
             let actionClient = new ROSLIB.ActionClient({
-                ros : this.ros,
-                serverName : '/tortoisebot_as',
-                actionName : 'course_web_dev_ros/WaypointActionAction'
+                ros: this.ros,
+                serverName: '/tortoisebot_as',
+                actionName: 'course_web_dev_ros/WaypointActionAction'
             })
 
             this.goal = new ROSLIB.Goal({
-                actionClient : actionClient,
+                actionClient: actionClient,
                 goalMessage: {
                     ...this.action.goal
                 }
@@ -305,7 +357,7 @@ var app = new Vue({
             })
             this.goal.send()
         },
-        cancelGoal: function() {
+        cancelGoal: function () {
             this.goal.cancel()
         },
         gotoWaypoint(index) {
