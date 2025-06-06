@@ -86,6 +86,7 @@ var app = new Vue({
                 this.pubInterval = setInterval(this.publish, 100)
                 this.setupCurrentPose()
                 this.setupMapViewer()
+                this.detectEnvironment()
             })
             this.ros.on('error', (error) => {
                 this.logs.unshift((new Date()).toTimeString() + ` - Error: ${error}`)
@@ -231,7 +232,7 @@ var app = new Vue({
         publish: function () {
             let topic = new ROSLIB.Topic({
                 ros: this.ros,
-                name: '/cmd_vel',
+                name: this.cmdtopic,
                 messageType: 'geometry_msgs/Twist'
             })
             let message = new ROSLIB.Message({
@@ -366,6 +367,31 @@ var app = new Vue({
             this.action.goal.position.x = wp.x;
             this.action.goal.position.y = wp.y;
             this.sendGoal();
+        },
+        detectEnvironment() {
+            this.ros.getTopics((topics) => {
+                const topicList = topics.topics;
+
+                if (
+                    topicList.includes('/diffbot_base_controller/cmd_vel_unstamped')
+                ) {
+                    // Simulated environment
+                    this.env = 'sim';
+                    this.cmdtopic = '/diffbot_base_controller/cmd_vel_unstamped';
+                } else {
+                    // Real environment
+                    this.env = 'real';
+                    this.cmdtopic = '/cmd_vel';
+                }
+
+                console.log(`Detected ENV: ${this.env}`);
+                console.log(`CMD Topic: ${this.cmdtopic}`);
+            }, (err) => {
+                console.error('Error getting topics:', err);
+                // Fallback to real
+                this.env = 'real';
+                this.cmdtopic = '/cmd_vel';
+            });
         },
     },
     mounted() {
