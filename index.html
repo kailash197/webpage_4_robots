@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Warehouse Robot Control Dashboard</title>
+
+    <!-- Bootstrap -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+        integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <!-- ROS stuff -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/eventemitter2/lib/eventemitter2.min.js"></script>
+    <script type="text/javascript" src="https://s3.eu-west-1.amazonaws.com/rosject.io/js/roslib.min.js"></script>
+
+    <!-- Vuejs -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="app" class="dashboard">
+        <div class="header">
+            <h1>WAREHOUSE ROBOT CONTROL CENTER</h1>
+            <div class="status-bar">
+                <label>ROSBridge address</label>
+                <input type="text" id="rosbridge-address" v-model="rosbridge_address">
+                <button :disabled="loading" class="btn btn-danger" @click="disconnectROS"
+                    v-if="rosbridge_connected">Disconnect!</button>
+                <button :disabled="loading" class="btn btn-success" @click="connectROS" v-else>Connect!</button>
+
+                <div class="status-item" v-if="rosbridge_connected">
+                    <div class="status-indicator online"></div>
+                    <span>System Online</span>
+                </div>
+                <div class="status-item" v-else="rosbridge_connected">
+                    <div class="status-indicator offline"></div>
+                    <span>System Offline</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel robot-controls">
+            <div class="panel-title">Robot Controls</div>
+
+            <div class="control-buttons">
+                <button class="control-btn" onclick="moveRobot('forward')">
+                    <i class="fas fa-arrow-up"></i>
+                    Forward
+                </button>
+                <button class="control-btn" onclick="moveRobot('left')">
+                    <i class="fas fa-arrow-left"></i>
+                    Left
+                </button>
+                <button class="control-btn" onclick="moveRobot('stop')">
+                    <i class="fas fa-stop"></i>
+                    Stop
+                </button>
+                <button class="control-btn" onclick="moveRobot('backward')">
+                    <i class="fas fa-arrow-down"></i>
+                    Backward
+                </button>
+                <button class="control-btn" onclick="moveRobot('right')">
+                    <i class="fas fa-arrow-right"></i>
+                    Right
+                </button>
+                <button class="control-btn" onclick="chargeRobot()">
+                    <i class="fas fa-bolt"></i>
+                    Charge
+                </button>
+            </div>
+
+            <!-- Joystick Control -->
+            <div class="joystick-container">
+                <div class="joystick-header">Joystick Control</div>
+                <div class="joystick-base" id="joystick-base">
+                    <div class="joystick-axis">
+                        <div class="axis-line horizontal"></div>
+                        <div class="axis-line vertical"></div>
+                    </div>
+                    <div class="joystick-head" id="joystick-head"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel warehouse-map">
+            <div class="panel-title">Warehouse Map <span>Grid Sector A-12</span></div>
+            <div class="map-container">
+                <div class="map-grid"></div>
+                <div class="shelf" style="width: 120px; height: 200px; top: 50px; left: 100px;"></div>
+                <div class="shelf" style="width: 120px; height: 200px; top: 50px; left: 300px;"></div>
+                <div class="shelf" style="width: 120px; height: 200px; top: 50px; left: 500px;"></div>
+                <div class="shelf" style="width: 120px; height: 300px; top: 300px; left: 200px;"></div>
+                <div class="shelf" style="width: 120px; height: 300px; top: 300px; left: 400px;"></div>
+                <div class="robot-marker" style="top: 150px; left: 200px;" id="robot-1"></div>
+                <div class="robot-marker" style="top: 400px; left: 350px;" id="robot-2"></div>
+                <div class="robot-marker" style="top: 250px; left: 450px;" id="robot-3"></div>
+            </div>
+        </div>
+
+        <div class="panel status-panel">
+            <div class="panel-title">System Status</div>
+            <div class="status-indicators">
+                <div class="indicator">
+                    <i class="fas fa-robot"></i>
+                    <div class="indicator-value">3/5</div>
+                    <div class="indicator-label">Active Robots</div>
+                </div>
+                <div class="indicator">
+                    <i class="fas fa-tasks"></i>
+                    <div class="indicator-value">8</div>
+                    <div class="indicator-label">Pending Tasks</div>
+                </div>
+                <div class="indicator">
+                    <i class="fas fa-battery-three-quarters"></i>
+                    <div class="indicator-value">68%</div>
+                    <div class="indicator-label">Avg. Battery</div>
+                </div>
+                <div class="indicator">
+                    <i class="fas fa-box-open"></i>
+                    <div class="indicator-value">142</div>
+                    <div class="indicator-label">Items Processed</div>
+                </div>
+            </div>
+            <div class="panel-title" style="margin-top: 20px;">System Log</div>
+            <div class="log-panel">
+                <div class="log-entry">
+                    <span class="log-time">10:42:15</span>
+                    <span class="log-message">R-001 picked up item at A-12</span>
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">10:40:32</span>
+                    <span class="log-message">R-003 moving to charging station</span>
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">10:38:47</span>
+                    <span class="log-message">New task assigned to R-002</span>
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">10:37:12</span>
+                    <span class="log-message">R-005 offline for maintenance</span>
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">10:35:29</span>
+                    <span class="log-message">System check completed</span>
+                </div>
+            </div>
+        </div>
+        <div class="alert" id="alert">
+            <div class="alert-message">Robot command sent successfully</div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        // We could have loaded main.js simply with:
+        //  <script type="text/javascript" src="main.js">
+        //
+        // BUT we were having caching-related problems.
+        // Loading main.js with a Date.now() in the URL we avoid using cache
+        var script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.src = 'main.js?v=11.' + Date.now();
+        document.head.appendChild(script);
+
+    </script>
+</body>
+
+</html>
