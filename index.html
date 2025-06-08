@@ -46,27 +46,27 @@
             <div class="panel-title">Robot Controls</div>
 
             <div class="control-buttons">
-                <button class="control-btn" onclick="moveRobot('forward')">
-                    <i class="fas fa-arrow-up"></i>
-                    Forward
-                </button>
-                <button class="control-btn" onclick="moveRobot('left')">
+                <button class="control-btn" @click="moveRobot('left')">
                     <i class="fas fa-arrow-left"></i>
                     Left
                 </button>
-                <button class="control-btn" onclick="moveRobot('stop')">
-                    <i class="fas fa-stop"></i>
-                    Stop
+                <button class="control-btn" @click="moveRobot('forward')">
+                    <i class="fas fa-arrow-up"></i>
+                    Forward
                 </button>
-                <button class="control-btn" onclick="moveRobot('backward')">
-                    <i class="fas fa-arrow-down"></i>
-                    Backward
-                </button>
-                <button class="control-btn" onclick="moveRobot('right')">
+                <button class="control-btn" @click="moveRobot('right')">
                     <i class="fas fa-arrow-right"></i>
                     Right
                 </button>
-                <button class="control-btn" onclick="chargeRobot()">
+                <button class="control-btn" @click="moveRobot('stop')">
+                    <i class="fas fa-stop"></i>
+                    Stop
+                </button>
+                <button class="control-btn" @click="moveRobot('backward')">
+                    <i class="fas fa-arrow-down"></i>
+                    Backward
+                </button>
+                <button class="control-btn" @click="chargeRobot()">
                     <i class="fas fa-bolt"></i>
                     Charge
                 </button>
