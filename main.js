@@ -8,17 +8,21 @@ new Vue({
         logs: [],
         loading: false,
         port: '9090',
+
+        // publisher
+        pubInterval: null,
        
-        // // Joystick Control
-        // dragging: false,
-        // joystick: {
-        //     vertical: 0,
-        //     horizontal: 0
-        // }
+        // Joystick Control
+        dragging: false,
+        joystick: {
+            vertical: 0,
+            horizontal: 0
+        },
+        joystickBaseRect: null
     },
     methods: {
         connectROS: function () {
-            console.log(`Inside connectROS`);
+            console.log('Connecting to ROS...');
             this.loading = true
             this.ros = new ROSLIB.Ros({
                 url: this.rosbridge_address
@@ -27,11 +31,12 @@ new Vue({
                 this.logs.unshift((new Date()).toTimeString() + ' - Connected!')
                 this.rosbridge_connected = true
                 this.loading = false
-                this.pubInterval = setInterval(this.publish, 1000)
+                this.pubInterval = setInterval(this.publishFromJoystick, 100)
                 this.detectEnvironment()
             })
             this.ros.on('error', (error) => {
                 this.logs.unshift((new Date()).toTimeString() + ` - Error: ${error}`)
+                this.loading = false;
             })
             this.ros.on('close', () => {
                 this.logs.unshift((new Date()).toTimeString() + ' - Disconnected!')
@@ -41,20 +46,20 @@ new Vue({
             })
         },
         disconnectROS: function () {
-            console.log(`Inside disconnectROS`);
-            this.ros.close()
+            console.log('Disconnecting from ROS...');
+            if (this.ros) {
+                this.ros.close();
+            }
             this.goal = null
         },
 
         // detect the environment: sim or real
         detectEnvironment() {
-            console.log(`Inside detectEnvironment`);
+            console.log(`Detecting current environment`);
             this.ros.getTopics((topics) => {
                 const topicList = topics.topics;
 
-                if (
-                    topicList.includes('/diffbot_base_controller/cmd_vel_unstamped')
-                ) {
+                if (topicList.includes('/diffbot_base_controller/cmd_vel_unstamped')) {
                     // Simulated environment
                     this.env = 'sim';
                     this.cmdtopic = '/diffbot_base_controller/cmd_vel_unstamped';
@@ -63,11 +68,9 @@ new Vue({
                     this.env = 'real';
                     this.cmdtopic = '/cmd_vel';
                 }
-
-                console.log(`Detected ENV: ${this.env}`);
-                console.log(`CMD Topic: ${this.cmdtopic}`);
+                console.log(`Environment: ${this.env}, CMD Topic: ${this.cmdtopic}`);
             }, (err) => {
-                console.error('Error getting topics:', err);
+                console.error('Error detecting environment:', err);
                 // Fallback to real
                 this.env = 'real';
                 this.cmdtopic = '/cmd_vel';
@@ -75,22 +78,32 @@ new Vue({
         },
         
         moveRobot(direction) {
-            console.log(`Inside moveRobot: ${direction} `);
-            if (direction === 'forward'){
-                this.publish(0.40, 0.0);
-            } else if (direction === 'left'){
-                this.publish(0.0, 0.40);
-            } else if (direction === 'right'){
-                this.publish(0.0, -0.40);
-            } else if (direction === 'backward'){
-                this.publish(-0.40, 0.00);
-            } else {
-                this.publish(0.0, 0.0);
+            console.log(`Moving robot: ${direction} `);
+            const speed = 0.4; // Default speed value
+            switch(direction) {
+                case 'forward':
+                    this.publish(speed, 0.0);
+                    break;
+                case 'backward':
+                    this.publish(-speed, 0.0);
+                    break;
+                case 'left':
+                    this.publish(0.0, speed);
+                    break;
+                case 'right':
+                    this.publish(0.0, -speed);
+                    break;
+                default:
+                    this.publish(0.0, 0.0); // Stop
             }
         },
         
         // Command velocity publisher for Joystick
-        publish: function (linear_vel, angular_vel) {
+        publish (linear_vel, angular_vel) {
+            if (!this.ros || !this.ros.isConnected) {
+                console.warn('ROS not connected, cannot publish');
+                return;
+            }
             let topic = new ROSLIB.Topic({
                 ros: this.ros,
                 name: this.cmdtopic,
@@ -102,92 +115,86 @@ new Vue({
             })
             topic.publish(message)
         },
-    },
-        
 
-        
-        // // Joystick methods
-        // startDrag(event) {
-        //     this.dragging = true;
-        //     this.updateJoystick(event);
-        // },
-        
-        // updateJoystick(event) {
-        //     if (!this.dragging) return;
-            
-        //     const joystickBase = document.getElementById('joystick-base');
-        //     const rect = joystickBase.getBoundingClientRect();
-        //     const centerX = rect.width / 2;
-        //     const centerY = rect.height / 2;
-            
-        //     const clientX = event.clientX || event.touches[0].clientX;
-        //     const clientY = event.clientY || event.touches[0].clientY;
-            
-        //     const x = clientX - rect.left - centerX;
-        //     const y = clientY - rect.top - centerY;
-        //     const distance = Math.min(Math.sqrt(x*x + y*y), centerX - 30);
-            
-        //     const angle = Math.atan2(y, x);
-        //     const newX = distance * Math.cos(angle);
-        //     const newY = distance * Math.sin(angle);
-            
-        //     document.getElementById('joystick-head').style.transform = 
-        //         `translate(calc(-50% + ${newX}px), calc(-50% + ${newY}px)`;
-            
-        //     // Calculate direction
-        //     this.joystick.horizontal = (newX / (centerX - 30)).toFixed(2);
-        //     this.joystick.vertical = (newY / (centerY - 30)).toFixed(2);
-            
-        //     // Determine movement direction
-        //     if (Math.abs(this.joystick.horizontal) > 0.3 || Math.abs(this.joystick.vertical) > 0.3) {
-        //         let direction = 'stop';
-        //         if (Math.abs(this.joystick.horizontal) > Math.abs(this.joystick.vertical)) {
-        //             direction = this.joystick.horizontal > 0 ? 'right' : 'left';
-        //         } else {
-        //             direction = this.joystick.vertical > 0 ? 'backward' : 'forward';
-        //         }
-        //         this.moveRobot(direction);
-        //     }
-        // },
-        
-        // endDrag() {
-        //     this.dragging = false;
-        //     document.getElementById('joystick-head').style.transform = 'translate(-50%, -50%)';
-        //     this.joystick = { vertical: 0, horizontal: 0 };
-        // }
-
-    // mounted() {
-    //     // Set up event listeners for joystick
-    //     const joystickHead = document.getElementById('joystick-head');
-    //     joystickHead.addEventListener('mousedown', this.startDrag);
-    //     joystickHead.addEventListener('touchstart', this.startDrag);
-        
-    //     document.addEventListener('mousemove', this.updateJoystick);
-    //     document.addEventListener('touchmove', this.updateJoystick);
-        
-    //     document.addEventListener('mouseup', this.endDrag);
-    //     document.addEventListener('touchend', this.endDrag);
-        
-    //     // Simulate random movement
-    //     setInterval(() => {
-    //         this.robots.forEach(robot => {
-    //             if (robot.status === 'active') {
-    //                 robot.x += Math.floor(Math.random() * 10) - 5;
-    //                 robot.y += Math.floor(Math.random() * 10) - 5;
-                    
-    //                 robot.x = Math.max(20, Math.min(580, robot.x));
-    //                 robot.y = Math.max(20, Math.min(580, robot.y));
-    //             }
-    //         });
-    //     }, 2000);
-    // }
-    mounted() {
-        // page is ready
-        window.addEventListener('mouseup', this.stopDrag)
-        this.interval = setInterval(() => {
-            if (this.ros != null && this.ros.isConnected) {
-                this.ros.getNodes((data) => { }, (error) => { })
+        //Joystick mouse action functions        
+        publishFromJoystick() {
+            if (this.dragging) {
+                this.publish(this.joystick.vertical, -this.joystick.horizontal);
             }
-        }, 10000)
+        },
+        startDrag(event) {
+            this.dragging = true;
+            if (!this.joystickBaseRect) {
+                const base = document.getElementById('joystick-base');
+                this.joystickBaseRect = base.getBoundingClientRect();
+            }
+            this.updateJoystickPosition(event);
+        },
+        updateJoystickPosition(event) {
+            if (!this.dragging) return;
+            
+            const clientX = event.clientX || event.touches[0].clientX;
+            const clientY = event.clientY || event.touches[0].clientY;
+            
+            // Calculate relative position within joystick base
+            const x = clientX - this.joystickBaseRect.left - (this.joystickBaseRect.width / 2);
+            const y = clientY - this.joystickBaseRect.top - (this.joystickBaseRect.height / 2);
+            
+            // Limit to joystick bounds
+            const distance = Math.min(Math.sqrt(x*x + y*y), this.joystickBaseRect.width / 2);
+            const angle = Math.atan2(y, x);
+            
+            // Calculate bounded position
+            const boundedX = distance * Math.cos(angle);
+            const boundedY = distance * Math.sin(angle);
+            
+            // Update joystick head position
+            const joystickHead = document.getElementById('joystick-head');
+            joystickHead.style.transform = `translate(calc(-50% + ${boundedX}px), calc(-50% + ${boundedY}px)`;
+            
+            // Calculate raw numbers first
+            const vertical = boundedY / (this.joystickBaseRect.height / 2);
+            const horizontal = boundedX / (this.joystickBaseRect.width / 2);
+            
+            // Store as numbers in data
+            this.joystick.vertical = -vertical;
+            this.joystick.horizontal = horizontal;
+        },
+        
+        stopDrag() {
+            if (!this.dragging) return;
+            
+            this.dragging = false;
+            const joystickHead = document.getElementById('joystick-head');
+            joystickHead.style.transform = 'translate(-50%, -50%)';
+            
+            // Reset joystick values
+            this.joystick.vertical = 0;
+            this.joystick.horizontal = 0;
+            
+            // Send stop command
+            this.publish(0, 0);
+        },
+    },
+
+    mounted() {
+        // Initialize joystick base dimensions
+        this.$nextTick(() => {
+            const joystickBase = document.getElementById('joystick-base');
+            if (joystickBase) {
+                this.joystickBaseRect = joystickBase.getBoundingClientRect();
+            }
+            
+            // Set up event listeners
+            const joystickHead = document.getElementById('joystick-head');
+            joystickHead.addEventListener('mousedown', this.startDrag);
+            joystickHead.addEventListener('touchstart', this.startDrag, { passive: false });
+            
+            document.addEventListener('mousemove', this.updateJoystickPosition);
+            document.addEventListener('touchmove', this.updateJoystickPosition, { passive: false });
+            
+            document.addEventListener('mouseup', this.stopDrag);
+            document.addEventListener('touchend', this.stopDrag);
+        });
     },
 });

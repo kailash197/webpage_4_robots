@@ -267,7 +267,17 @@ body {
     margin-bottom: 5px;
 }
 
-/* Joystick Styles */
+.status-display {
+    margin-top: 20px;
+    font-size: 0.9rem;
+}
+
+.velocity-values {
+    margin-top: 10px;
+    font-family: monospace;
+}
+
+/*Joystick Styles */
 .joystick-container {
     display: flex;
     flex-direction: column;

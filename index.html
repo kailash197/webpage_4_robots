@@ -82,6 +82,12 @@
                     </div>
                     <div class="joystick-head" id="joystick-head"></div>
                 </div>
+                <div class="status-display">
+                    <div class="velocity-values">
+                        Linear: {{ joystick.vertical.toFixed(2) }} |
+                        Angular: {{ (-joystick.horizontal).toFixed(2) }}
+                    </div>
+                </div>
             </div>
         </div>
 
