@@ -43,8 +43,7 @@
         </div>
 
         <div class="panel robot-controls">
-            <div class="panel-title">Robot Controls</div>
-
+            <div class="panel-title">Velocity Controls</div>
             <div class="control-buttons">
                 <button class="control-btn" @click="moveRobot('left')">
                     <i class="fas fa-arrow-left"></i>
@@ -83,12 +82,21 @@
                     <div class="joystick-head" id="joystick-head"></div>
                 </div>
                 <div class="status-display">
-                    <div class="velocity-values">
-                        Linear: {{ joystick.vertical.toFixed(2) }} |
-                        Angular: {{ (-joystick.horizontal).toFixed(2) }}
-                    </div>
+                    <div class="velocity-values"> Linear: {{ joystick.vertical.toFixed(2) }} </div>
+                    <div class="velocity-values">Angular: {{ (-joystick.horizontal).toFixed(2) }} </div>
                 </div>
             </div>
+
+            <div class="panel-title">Robot Controls</div>
+            <div class="localize-control">
+                <button @click="callLocalizeAction" :class="{
+                    'btn-red': state==='error',
+                    'btn-yellow': state==='in_progress',
+                    'btn-green': state==='success',
+                    'btn-default': state==='ready'}" :disabled="state === 'in_progress'">LOCALIZE </button>
+                <div class="feedback" v-if="feedback"> {{feedback}}</div>
+            </div>
+
         </div>
 
         <div class="panel warehouse-map">

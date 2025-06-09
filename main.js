@@ -18,7 +18,12 @@ new Vue({
             vertical: 0,
             horizontal: 0
         },
-        joystickBaseRect: null
+        joystickBaseRect: null,
+
+        // Glocalization Action server
+        state: 'ready', // 'ready', 'in_progress', 'success', 'error'
+        feedback: '',
+        actionClient: null
     },
     methods: {
         connectROS: function () {
@@ -175,6 +180,71 @@ new Vue({
             // Send stop command
             this.publish(0, 0);
         },
+        
+        // Glocalization Action Server
+        async callLocalizeAction() {
+                try {
+                    this.state = 'in_progress';
+                    this.feedback = 'Initializing localization...';
+
+                    // send the action goal
+                    this.actionClient = new ROSLIB.ActionClient({
+                        ros: this.ros, // Assuming ROS connection is available via Vue instance
+                        serverName: '/waretomation_localize',
+                        actionName: 'warehouse_automation_pkg/action/Localize'
+                    });
+
+                    this.goal = new ROSLIB.Goal({
+                        actionClient: this.actionClient,
+                        goalMessage: {}    // Empty goal object
+                    });
+
+                    goal.on('feedback', (fb) => {
+                        this.feedback = fb.message || 'Processing...';
+                    });
+
+                    goal.on('result', (result) => {
+                        if (result.success) {
+                            this.state = 'success';
+                            this.feedback = 'Localization complete!';
+                        }
+
+                        else {
+                            this.state = 'error';
+                            this.feedback = 'Localization failed';
+                        }
+                    });
+
+                    goal.send();
+
+                }
+
+                catch (error) {
+                    this.state = 'error';
+                    this.feedback = `Error: ${error.message}`;
+                    console.error('Localization error:', error);
+                }
+            },
+
+            executeCommand(command) {
+                return new Promise((resolve, reject) => {
+                    // This is a placeholder - you'll need to implement actual command execution
+                    // For example, using a child process in Electron or a backend API
+                    console.log('Executing:', command);
+                    setTimeout(resolve, 1000); // Simulate command execution
+                });
+            },
+
+            checkActionServer() {
+                // Periodically check if action server is available
+                if (this.actionClient) {
+                    this.actionClient.isServerConnected((connected) => {
+                        this.state = connected ? 'ready' : 'error';
+                    });
+                } else {
+                    this.state = 'error';
+                }
+            }
     },
 
     mounted() {
@@ -196,5 +266,17 @@ new Vue({
             document.addEventListener('mouseup', this.stopDrag);
             document.addEventListener('touchend', this.stopDrag);
         });
+         // Check Glocalization action server status every 5 seconds
+        this.serverCheckInterval = setInterval(this.checkActionServer, 5000);
+        this.checkActionServer();
+
+        this.interval = setInterval(() => {
+            if (this.ros != null && this.ros.isConnected) {
+                this.ros.getNodes((data) => { }, (error) => { })
+            }
+        }, 10000)
     },
+    beforeDestroy() {
+        clearInterval(this.serverCheckInterval);
+    }
 });
