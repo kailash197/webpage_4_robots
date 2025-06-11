@@ -4,7 +4,7 @@ new Vue({
         // ROS Connection
         rosbridge_connected: false,
         ros: null,
-        rosbridge_address: 'wss://i-0cf0fb5756a59337f.robotigniteacademy.com/4f333597-9bfe-4125-a0c4-b123877b5d1d/rosbridge/',
+        rosbridge_address: 'wss://i-010332b2199dc3d36.robotigniteacademy.com/4478d68f-616f-43ac-80a0-aaadbb061372/rosbridge/',
         logs: [],
         loading: false,
         port: '9090',
@@ -21,10 +21,18 @@ new Vue({
         joystickBaseRect: null,
 
         // Glocalization Action server
-        state: 'ready', // 'ready', 'in_progress', 'success', 'error'
-        feedback: '',
-        actionClient: null
+        gl_goal: null,
+        gl_state: '', // 'ready', 'in_progress', 'success', 'error'
+        // Feedback status: UNAVAILABLE, FAIL, PROGRESS, COMPLETE
+        gl_action: {
+            goal: {},
+            feedback: { cov_x: 0.0, cov_y: 0.0, cov_yaw: 0.0, status: '' },
+            result: { success: false, status: '' },
+            status: { status: 0, text: '' },
+        },
+        gl_serviceClient: null
     },
+
     methods: {
         connectROS: function () {
             console.log('Connecting to ROS...');
@@ -37,16 +45,19 @@ new Vue({
                 this.rosbridge_connected = true
                 this.loading = false
                 this.pubInterval = setInterval(this.publishFromJoystick, 100)
+                console.log("ROS connected.")
                 this.detectEnvironment()
             })
             this.ros.on('error', (error) => {
                 this.logs.unshift((new Date()).toTimeString() + ` - Error: ${error}`)
                 this.loading = false;
+                console.log("ROS connection error")
             })
             this.ros.on('close', () => {
                 this.logs.unshift((new Date()).toTimeString() + ' - Disconnected!')
                 this.rosbridge_connected = false
                 this.loading = false
+                console.log("ROS connection closed")
                 clearInterval(this.pubInterval)
             })
         },
@@ -55,7 +66,9 @@ new Vue({
             if (this.ros) {
                 this.ros.close();
             }
-            this.goal = null
+            this.goal = null;
+            this.gl_state = null;
+            this.rosbridge_connected=false;
         },
 
         // detect the environment: sim or real
@@ -180,73 +193,103 @@ new Vue({
             // Send stop command
             this.publish(0, 0);
         },
-        
-        // Glocalization Action Server
-        async callLocalizeAction() {
-                try {
-                    this.state = 'in_progress';
-                    this.feedback = 'Initializing localization...';
 
-                    // send the action goal
-                    this.actionClient = new ROSLIB.ActionClient({
-                        ros: this.ros, // Assuming ROS connection is available via Vue instance
-                        serverName: '/waretomation_localize',
-                        actionName: 'warehouse_automation_pkg/action/Localize'
-                    });
+        gglocalization_request(){            
+            this.gl_serviceClient = new ROSLIB.Service({
+                ros: this.ros,
+                name: '/wh_global_localization',
+                serviceType: 'warehouse_automation_pkg/srv/GlobalLocalization'
+            });
+            console.log('Server request sent: ' + this.gl_serviceClient.name);
+            
+            let request = new ROSLIB.ServiceRequest({}); // Empty: Trigger Only
 
-                    this.goal = new ROSLIB.Goal({
-                        actionClient: this.actionClient,
-                        goalMessage: {}    // Empty goal object
-                    });
+            this.gl_serviceClient.callService(request, (result) => {
+                console.log('Service call accepted?: ' + result.success);
+            }, (error) => {
+                console.error(error);              
+            });            
+        },
+        localization_request() {
+            // Publisher to /wh_glocalization_goal
+            const pub = new ROSLIB.Topic({
+                ros: this.ros,
+                name: '/wh_glocalization_goal',
+                messageType: 'std_msgs/Empty'
+            });
+            this.gl_state = 'ready';
 
-                    goal.on('feedback', (fb) => {
-                        this.feedback = fb.message || 'Processing...';
-                    });
+            // Publish an empty message to trigger localization
+            const emptyMsg = new ROSLIB.Message({});
+            pub.publish(emptyMsg);
+            console.log('Sent trigger to /wh_glocalization_goal');
 
-                    goal.on('result', (result) => {
-                        if (result.success) {
-                            this.state = 'success';
-                            this.feedback = 'Localization complete!';
-                        }
+            // Subscribe to feedback topic
+            const feedbackSub = new ROSLIB.Topic({
+                ros: this.ros,
+                name: '/wh_glocalization_feedback',
+                messageType: 'std_msgs/String'  // Or use the actual message type if it's custom
+            });
 
-                        else {
-                            this.state = 'error';
-                            this.feedback = 'Localization failed';
-                        }
-                    });
-
-                    goal.send();
-
+            feedbackSub.subscribe((message) => {
+                console.log('Feedback:', message.data);
+                
+                const feedback = message.data;
+                const pattern = /cov_x: ([\d.]+), cov_y: ([\d.]+), cov_yaw: ([\d.]+), status: (\w+)/;
+                const matches = feedback.match(pattern);
+                
+                if (matches) {
+                    const values = {
+                        cov_x: parseFloat(matches[1]),
+                        cov_y: parseFloat(matches[2]),
+                        cov_yaw: parseFloat(matches[3]),
+                        status: matches[4]
+                    };
+                    
+                    console.log('Parsed values:', values);
+                    this.gl_state = values.status;
                 }
+            });
 
-                catch (error) {
-                    this.state = 'error';
-                    this.feedback = `Error: ${error.message}`;
-                    console.error('Localization error:', error);
+            // Subscribe to result topic
+            const resultSub = new ROSLIB.Topic({
+                ros: this.ros,
+                name: '/wh_glocalization_result',
+                messageType: 'std_msgs/String'  // Or replace with actual result msg type
+            });
+
+            resultSub.subscribe((message) => {
+                console.log('Result:', message.data);
+                const result = message.data;
+                const pattern = /success: (\w+), status: (\w+)/;
+                const matches = result.match(pattern);
+                
+                if (matches) {
+                    const values = {
+                        success: matches[1],
+                        status: matches[2]
+                    };
+                    
+                    console.log('Parsed values:', values);
+                    this.gl_state = values.status;
                 }
-            },
+            });
+        },
+        chargeRobot() {
+            showAlert('Charging command sent to robot', 'warning');
+        },
+        // Alert notification system
+        showAlert(message, type) {
+            const alert = document.getElementById('alert');
+            alert.querySelector('.alert-message').textContent = message;
+            alert.className = 'alert';
+            alert.classList.add('show', `alert-${type}`);
 
-            executeCommand(command) {
-                return new Promise((resolve, reject) => {
-                    // This is a placeholder - you'll need to implement actual command execution
-                    // For example, using a child process in Electron or a backend API
-                    console.log('Executing:', command);
-                    setTimeout(resolve, 1000); // Simulate command execution
-                });
-            },
-
-            checkActionServer() {
-                // Periodically check if action server is available
-                if (this.actionClient) {
-                    this.actionClient.isServerConnected((connected) => {
-                        this.state = connected ? 'ready' : 'error';
-                    });
-                } else {
-                    this.state = 'error';
-                }
-            }
+            setTimeout(() => {
+                alert.classList.remove('show');
+            }, 3000);
+        }
     },
-
     mounted() {
         // Initialize joystick base dimensions
         this.$nextTick(() => {
@@ -267,8 +310,8 @@ new Vue({
             document.addEventListener('touchend', this.stopDrag);
         });
          // Check Glocalization action server status every 5 seconds
-        this.serverCheckInterval = setInterval(this.checkActionServer, 5000);
-        this.checkActionServer();
+        this.serverCheckInterval = setInterval(this.checkActionServer, 500);
+        // this.checkActionServer();
 
         this.interval = setInterval(() => {
             if (this.ros != null && this.ros.isConnected) {
@@ -278,5 +321,5 @@ new Vue({
     },
     beforeDestroy() {
         clearInterval(this.serverCheckInterval);
-    }
+    },
 });

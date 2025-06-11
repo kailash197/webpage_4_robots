@@ -89,12 +89,13 @@
 
             <div class="panel-title">Robot Controls</div>
             <div class="localize-control">
-                <button @click="callLocalizeAction" :class="{
-                    'btn-red': state==='error',
-                    'btn-yellow': state==='in_progress',
-                    'btn-green': state==='success',
-                    'btn-default': state==='ready'}" :disabled="state === 'in_progress'">LOCALIZE </button>
-                <div class="feedback" v-if="feedback"> {{feedback}}</div>
+                <button @click="localization_request" :disabled="!rosbridge_connected || gl_state === 'PROGRESS'"
+                    :class="{
+                    'btn-red': gl_state==='FAIL',
+                    'btn-yellow': gl_state==='PROGRESS',
+                    'btn-green': gl_state==='COMPLETE',
+                    'btn-default': gl_state==='READY'}">Localize</button>
+                <div class="feedback"> {{gl_state}}</div>
             </div>
 
         </div>
