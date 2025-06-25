@@ -13,11 +13,23 @@
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/eventemitter2/lib/eventemitter2.min.js"></script>
     <script type="text/javascript" src="https://s3.eu-west-1.amazonaws.com/rosject.io/js/roslib.min.js"></script>
 
+    <!-- 3D visualization -->
+    <script src="./libs/three.min.js"></script>
+    <script src="./libs/ColladaLoader.js"></script>
+    <script src="./libs/ColladaLoader2.js"></script>
+    <script src="./libs/STLLoader.js"></script>
+    <script src="./libs/ros3d.min.js"></script>
+
     <!-- Vuejs -->
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
 
     <!-- CSS -->
     <link rel="stylesheet" href="style.css">
+
+    <!--Map View-->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/easeljs/lib/easeljs.min.js"></script>
+    <!-- <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/ros2d/build/ros2d.min.js"></script> -->
+    <script type="text/javascript" src="./libs/ros2d.js"></script>
 </head>
 
 <body>
@@ -83,40 +95,90 @@
                 </div>
                 <div class="status-display">
                     <div class="velocity-values"> Linear: {{ joystick.vertical.toFixed(2) }} </div>
-                    <div class="velocity-values">Angular: {{ (-joystick.horizontal).toFixed(2) }} </div>
+                    <div class="velocity-values">Angular: {{ (-joystick.horizontal).toFixed(2) }} </div><br>
                 </div>
             </div>
 
             <div class="panel-title">Robot Controls</div>
             <div class="localize-control">
-                <button @click="localization_request" :disabled="!rosbridge_connected || gl_state === 'PROGRESS'"
+                <button @click="wh_start_request" :disabled="!rosbridge_connected" :class="{
+                    'btn-red': wh_status.start==='fail',
+                    'btn-yellow': wh_status.start==='inactive',
+                    'btn-green': wh_status.start==='complete',
+                    'btn-default': wh_status.start==='ready'}">Enable</button>
+                <button @click="wh_autostart_request" :disabled="!rosbridge_connected">AutoStart</button>
+                <button @click="localization_request"
+                    :disabled="!rosbridge_connected || wh_status.localize==='in-progress'" :class="{
+                    'btn-red': wh_status.localize==='fail',
+                    'btn-yellow': wh_status.localize==='in-progress',
+                    'btn-green': wh_status.localize==='complete',
+                    'btn-default': wh_status.localize==='inactive'}">Localize</button>
+                <button @click="wh_search_request" :disabled="!rosbridge_connected || wh_status.search==='in-progress'"
                     :class="{
-                    'btn-red': gl_state==='FAIL',
-                    'btn-yellow': gl_state==='PROGRESS',
-                    'btn-green': gl_state==='COMPLETE',
-                    'btn-default': gl_state==='READY'}">Localize</button>
-                <div class="feedback"> {{gl_state}}</div>
+                    'btn-red': wh_status.search_cart==='fail',
+                    'btn-yellow': wh_status.search_cart==='in-progress',
+                    'btn-green': wh_status.search_cart==='complete',
+                    'btn-default': wh_status.search_cart==='inactive'}">Search</button>
+                <button @click="wh_attach_cart_request" :disabled="!rosbridge_connected" :class="{
+                    'btn-red': wh_status.attach_cart==='fail',
+                    'btn-yellow': wh_status.attach_cart==='in-progress',
+                    'btn-green': wh_status.attach_cart==='complete',
+                    'btn-default': wh_status.attach_cart==='inactive'}">Attach</button>
+                <button @click="wh_goto_ship_pose_request"
+                    :disabled="!rosbridge_connected || wh_status.goto_ship_pose==='in-progress'" :class="{
+                    'btn-red': wh_status.goto_ship_pose==='fail',
+                    'btn-yellow': wh_status.goto_ship_pose==='in-progress',
+                    'btn-green': wh_status.goto_ship_pose==='complete',
+                    'btn-default': wh_status.goto_ship_pose==='inactive'}">GotoShip</button>
+                <button @click="wh_return_home_request" :disabled="!rosbridge_connected" :class="{
+                    'btn-red': wh_status.return_home==='fail',
+                    'btn-yellow': wh_status.return_home==='in-progress',
+                    'btn-green': wh_status.return_home==='complete',
+                    'btn-default': wh_status.return_home==='inactive'}">ReturnHome</button>
+                <button @click="wh_elevator_up_request" :disabled="!rosbridge_connected">ElevatorUp</button>
+                <button @click="wh_elevator_down_request" :disabled="!rosbridge_connected">ElevatorDown</button>
             </div>
-
         </div>
 
         <div class="panel warehouse-map">
-            <div class="panel-title">Warehouse Map <span>Grid Sector A-12</span></div>
+            <div class="panel-title">
+                <span class="title-icon">🗺️</span>
+                WAREHOUSE MAP
+                <span class="grid-sector">GRID SECTOR A-12</span>
+            </div>
             <div class="map-container">
-                <div class="map-grid"></div>
-                <div class="shelf" style="width: 120px; height: 200px; top: 50px; left: 100px;"></div>
-                <div class="shelf" style="width: 120px; height: 200px; top: 50px; left: 300px;"></div>
-                <div class="shelf" style="width: 120px; height: 200px; top: 50px; left: 500px;"></div>
-                <div class="shelf" style="width: 120px; height: 300px; top: 300px; left: 200px;"></div>
-                <div class="shelf" style="width: 120px; height: 300px; top: 300px; left: 400px;"></div>
-                <div class="robot-marker" style="top: 150px; left: 200px;" id="robot-1"></div>
-                <div class="robot-marker" style="top: 400px; left: 350px;" id="robot-2"></div>
-                <div class="robot-marker" style="top: 250px; left: 450px;" id="robot-3"></div>
+                <div class="map-grid-overlay"></div>
+                <div id="generatedMap" class="futuristic-map"></div>
+                <div class="map-controls">
+                    <div class="control-group">
+                        <label>MAP SCALE: <span class="value-display">{{ scale.toFixed(2) }}</span></label>
+                        <input type="range" min="0.05" max="1.0" step="0.01" v-model.number="scale"
+                            class="futuristic-slider">
+                    </div>
+                    <div class="control-buttons">
+                        <button class="control-btn" @click="resetMapView">
+                            <i class="fas fa-crosshairs"></i> CENTER
+                        </button>
+                        <button class="control-btn" @click="toggleGrid">
+                            <i class="fas fa-th"></i> GRID
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
         <div class="panel status-panel">
             <div class="panel-title">System Status</div>
+            <div id="app">
+                <div>Current State: {{ wh_status.current }}</div>
+                <div>Start: {{ wh_status.start }}</div>
+                <div>Localize: {{ wh_status.localize }}</div>
+                <div>Search Cart: {{ wh_status.search_cart }}</div>
+                <div>Attach Cart: {{ wh_status.attach_cart }}</div>
+                <div>Goto Ship Pose: {{ wh_status.goto_ship_pose}}</div>
+                <div>Return Home: {{ wh_status.return_home}}</div>
+                <div>Fail Counter: {{ wh_status.fail_count}}</div>
+            </div>
             <div class="status-indicators">
                 <div class="indicator">
                     <i class="fas fa-robot"></i>
@@ -128,17 +190,19 @@
                     <div class="indicator-value">8</div>
                     <div class="indicator-label">Pending Tasks</div>
                 </div>
-                <div class="indicator">
-                    <i class="fas fa-battery-three-quarters"></i>
-                    <div class="indicator-value">68%</div>
-                    <div class="indicator-label">Avg. Battery</div>
-                </div>
-                <div class="indicator">
-                    <i class="fas fa-box-open"></i>
-                    <div class="indicator-value">142</div>
-                    <div class="indicator-label">Items Processed</div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">Current Pose</div>
+                <div class="pose-info">
+                    <p>
+                        <span>Position: {{ position.x.toFixed(2) }}, {{ position.y.toFixed(2) }}, {{
+                            position.z.toFixed(2) }}</span><br />
+                        <span>Yaw: {{ yaw.toFixed(2) }} &deg;</span>
+                    </p>
                 </div>
             </div>
+
             <div class="panel-title" style="margin-top: 20px;">System Log</div>
             <div class="log-panel">
                 <div class="log-entry">
@@ -148,18 +212,6 @@
                 <div class="log-entry">
                     <span class="log-time">10:40:32</span>
                     <span class="log-message">R-003 moving to charging station</span>
-                </div>
-                <div class="log-entry">
-                    <span class="log-time">10:38:47</span>
-                    <span class="log-message">New task assigned to R-002</span>
-                </div>
-                <div class="log-entry">
-                    <span class="log-time">10:37:12</span>
-                    <span class="log-message">R-005 offline for maintenance</span>
-                </div>
-                <div class="log-entry">
-                    <span class="log-time">10:35:29</span>
-                    <span class="log-message">System check completed</span>
                 </div>
             </div>
         </div>

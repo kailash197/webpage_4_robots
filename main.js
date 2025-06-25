@@ -4,7 +4,7 @@ new Vue({
         // ROS Connection
         rosbridge_connected: false,
         ros: null,
-        rosbridge_address: 'wss://i-010332b2199dc3d36.robotigniteacademy.com/4478d68f-616f-43ac-80a0-aaadbb061372/rosbridge/',
+        rosbridge_address: 'wss://i-03eec067a3a3209d8.robotigniteacademy.com/87f7f588-75a4-4adb-b16d-15635e901f1f/rosbridge/',
         logs: [],
         loading: false,
         port: '9090',
@@ -20,17 +20,36 @@ new Vue({
         },
         joystickBaseRect: null,
 
-        // Glocalization Action server
-        gl_goal: null,
-        gl_state: '', // 'ready', 'in_progress', 'success', 'error'
-        // Feedback status: UNAVAILABLE, FAIL, PROGRESS, COMPLETE
-        gl_action: {
-            goal: {},
-            feedback: { cov_x: 0.0, cov_y: 0.0, cov_yaw: 0.0, status: '' },
-            result: { success: false, status: '' },
-            status: { status: 0, text: '' },
+        // wh_status
+        wh_status: {
+            fail_count: 0,
+            current: 'start',
+            start: 'inactive',
+            localize: 'inactive',
+            search_cart: 'inactive',
+            attach_cart: 'inactive',
+            goto_ship_pose: 'inactive',
+            return_home: 'inactive'
         },
-        gl_serviceClient: null
+
+        // ODOM subscriber data
+        position: { x: 0, y: 0, z: 0, },
+        yaw: 0,
+
+        // Map Viewer
+        mapViewer: null,
+        mapGridClient: null,
+        interval: null,
+        scale: 0.14,
+        shift: 0.0,
+    },
+    watch: {
+        scale(val) {
+            this.updateMapTransform()
+        },
+        shift(val) {
+            this.updateMapTransform()
+        }
     },
 
     methods: {
@@ -47,6 +66,9 @@ new Vue({
                 this.pubInterval = setInterval(this.publishFromJoystick, 100)
                 console.log("ROS connected.")
                 this.detectEnvironment()
+                this.read_wh_status()
+                this.setupCurrentPose()
+                this.setupMapViewer()
             })
             this.ros.on('error', (error) => {
                 this.logs.unshift((new Date()).toTimeString() + ` - Error: ${error}`)
@@ -59,6 +81,10 @@ new Vue({
                 this.loading = false
                 console.log("ROS connection closed")
                 clearInterval(this.pubInterval)
+                this.unsetMapViewer()
+                // ODOM subscriber data
+                this.position = { x: 0, y: 0, z: 0, }
+                this.yaw = 0
             })
         },
         disconnectROS: function () {
@@ -193,41 +219,83 @@ new Vue({
             // Send stop command
             this.publish(0, 0);
         },
+        read_wh_status() {
+            // Unsubscribe first if already subscribed
+            if (this.statusTopic) {
+                this.statusTopic.unsubscribe();
+            }
 
-        gglocalization_request(){            
-            this.gl_serviceClient = new ROSLIB.Service({
+            this.statusTopic = new ROSLIB.Topic({
                 ros: this.ros,
-                name: '/wh_global_localization',
-                serviceType: 'warehouse_automation_pkg/srv/GlobalLocalization'
+                name: '/wh_status',
+                messageType: 'std_msgs/String'
             });
-            console.log('Server request sent: ' + this.gl_serviceClient.name);
-            
-            let request = new ROSLIB.ServiceRequest({}); // Empty: Trigger Only
 
-            this.gl_serviceClient.callService(request, (result) => {
-                console.log('Service call accepted?: ' + result.success);
-            }, (error) => {
-                console.error(error);              
-            });            
+            // Use arrow function to maintain 'this' context
+            this.statusTopic.subscribe((message) => {
+                try {
+                    const statusData = typeof message.data === 'string' ? 
+                        JSON.parse(message.data) : 
+                        message;
+                    
+                    // Reactively update status with fallback values
+                    this.wh_status = {
+                        ...this.wh_status, // Keep existing values
+                        fail_count: statusData.fail_count || this.wh_status.fail_count,
+                        current: statusData.current || this.wh_status.current,
+                        start: statusData.start || this.wh_status.start,
+                        localize: statusData.localize || this.wh_status.localize,
+                        search_cart: statusData.search_cart || this.wh_status.search_cart,
+                        attach_cart: statusData.attach_cart || this.wh_status.attach_cart,
+                        goto_ship_pose: statusData.goto_ship_pose || this.wh_status.goto_ship_pose,
+                        return_home: statusData.return_home || this.wh_status.return_home
+                    };
+                    
+                    // console.log('Status updated:', this.wh_status);
+                } catch (error) {
+                    console.error('Error parsing status message:', error, message);
+                }
+            });
+        },
+
+        wh_start_request(){
+            const wh_start_pub = new ROSLIB.Topic({
+                ros: this.ros,
+                name: '/wh_automation_start',
+                messageType: 'std_msgs/String'
+            });
+            const startMsg =  new ROSLIB.Message({data: 'start'});
+            wh_start_pub.publish(startMsg);
+            console.log('Sent trigger to /wh_automation_start');
+        },
+        wh_autostart_request(){
+            const wh_autostart_pub = new ROSLIB.Topic({
+                ros: this.ros,
+                name: '/wh_automation_autostart',
+                messageType: 'std_msgs/String'
+            });
+            const startMsg =  new ROSLIB.Message({data: 'start'});
+            wh_autostart_pub.publish(startMsg);
+            console.log('Sent trigger to /wh_automation_autostart');
         },
         localization_request() {
             // Publisher to /wh_glocalization_goal
             const pub = new ROSLIB.Topic({
                 ros: this.ros,
-                name: '/wh_glocalization_goal',
-                messageType: 'std_msgs/Empty'
+                name: '/wh_localize',
+                messageType: 'std_msgs/String'
             });
             this.gl_state = 'ready';
 
             // Publish an empty message to trigger localization
-            const emptyMsg = new ROSLIB.Message({});
-            pub.publish(emptyMsg);
-            console.log('Sent trigger to /wh_glocalization_goal');
+            const startMsg = new ROSLIB.Message({data: 'start'});
+            pub.publish(startMsg);
+            console.log('Sent trigger to /wh_localize');
 
             // Subscribe to feedback topic
             const feedbackSub = new ROSLIB.Topic({
                 ros: this.ros,
-                name: '/wh_glocalization_feedback',
+                name: '/wh_localize_feedback',
                 messageType: 'std_msgs/String'  // Or use the actual message type if it's custom
             });
 
@@ -246,7 +314,7 @@ new Vue({
                         status: matches[4]
                     };
                     
-                    console.log('Parsed values:', values);
+                    console.log('Localize feedback:', values);
                     this.gl_state = values.status;
                 }
             });
@@ -254,8 +322,8 @@ new Vue({
             // Subscribe to result topic
             const resultSub = new ROSLIB.Topic({
                 ros: this.ros,
-                name: '/wh_glocalization_result',
-                messageType: 'std_msgs/String'  // Or replace with actual result msg type
+                name: '/wh_localize_result',
+                messageType: 'std_msgs/String'
             });
 
             resultSub.subscribe((message) => {
@@ -270,11 +338,77 @@ new Vue({
                         status: matches[2]
                     };
                     
-                    console.log('Parsed values:', values);
+                    console.log('Localize result:', values);
                     this.gl_state = values.status;
                 }
             });
         },
+        wh_search_request(){
+            const wh_search_pub = new ROSLIB.Topic({
+                ros: this.ros,
+                name: '/wh_search',
+                messageType: 'std_msgs/String'
+            });
+            const startMsg =  new ROSLIB.Message({data: 'start'});
+            wh_search_pub.publish(startMsg);
+            console.log('Sent trigger to /wh_search');
+        },
+        wh_attach_cart_request(){
+            const wh_search_pub = new ROSLIB.Topic({
+                ros: this.ros,
+                name: '/wh_attach_cart',
+                messageType: 'std_msgs/String'
+            });
+            const startMsg =  new ROSLIB.Message({data: 'start'});
+            wh_search_pub.publish(startMsg);
+            console.log('Sent trigger to /wh_attach_cart');
+        },
+        wh_goto_ship_pose_request(){
+            const wh_goto_ship_pose_pub = new ROSLIB.Topic({
+                ros: this.ros,
+                name: '/wh_goto_ship_pose',
+                messageType: 'std_msgs/String'
+            });
+            const startMsg =  new ROSLIB.Message({data: 'start'});
+            wh_goto_ship_pose_pub.publish(startMsg);
+            console.log('Sent trigger to /wh_goto_ship');
+        },
+
+        wh_return_home_request(){
+            const wh_return_home_pub = new ROSLIB.Topic({
+                ros: this.ros,
+                name: '/wh_return_home',
+                messageType: 'std_msgs/String'
+            });
+            const startMsg =  new ROSLIB.Message({data: 'start'});
+            wh_return_home_pub.publish(startMsg);
+            console.log('Sent trigger to /wh_return_home');
+        },
+
+        wh_elevator_up_request(){
+            const wh_elevator_up_pub = new ROSLIB.Topic({
+                ros: this.ros,
+                name: '/elevator_up',
+                messageType: 'std_msgs/String'
+            });
+            const startMsg =  new ROSLIB.Message({});
+            wh_elevator_up_pub.publish(startMsg);
+            wh_elevator_up_pub.publish(startMsg);
+            console.log('Sent trigger to /elevator_up');
+        },
+
+        wh_elevator_down_request(){
+            const wh_elevator_down_pub = new ROSLIB.Topic({
+                ros: this.ros,
+                name: '/elevator_down',
+                messageType: 'std_msgs/String'
+            });
+            const startMsg =  new ROSLIB.Message({});
+            wh_elevator_down_pub.publish(startMsg);
+            wh_elevator_down_pub.publish(startMsg);
+            console.log('Sent trigger to /elevator_down');
+        },
+
         chargeRobot() {
             showAlert('Charging command sent to robot', 'warning');
         },
@@ -288,8 +422,113 @@ new Vue({
             setTimeout(() => {
                 alert.classList.remove('show');
             }, 3000);
-        }
+        },
+
+        resetMapView() {
+            if (this.mapGridClient && this.mapViewer && this.mapGridClient.currentGrid) {
+                const grid = this.mapGridClient.currentGrid;
+                this.scale = 0.14; // Reset to default scale
+                this.shift = 0.0;
+                this.updateMapTransform();
+            }
+        },
+    
+        toggleGrid() {
+            const grid = document.querySelector('.map-grid-overlay');
+            grid.style.display = grid.style.display === 'none' ? 'block' : 'none';
+        },
+    
+        // Enhanced map viewer setup
+        setupMapViewer() {
+            this.mapViewer = new ROS2D.Viewer({
+                divID: 'generatedMap',
+                width: 420,
+                height: 360,
+                // background: '#0f1219'
+            });
+
+            // Add some futuristic elements to the scene
+            const border = new createjs.Shape();
+            border.graphics.beginStroke("#3a3f5c").drawRect(0, 0, 420, 360);
+            this.mapViewer.scene.addChild(border);
+
+            this.mapGridClient = new ROS2D.OccupancyGridClient({
+                ros: this.ros,
+                rootObject: this.mapViewer.scene,
+                continuous: true,
+                topic: '/map'
+            });
+
+            this.mapGridClient.on('change', () => {
+                const grid = this.mapGridClient.currentGrid;
+                if (grid) {
+                    this.mapViewer.scaleToDimensions(grid.width * this.scale, grid.height * this.scale);
+                    this.mapViewer.shift(
+                        (grid.pose.position.x + this.shift) * this.scale,
+                        (grid.pose.position.y - this.shift) * this.scale
+                    );
+                    
+                    // Add some visual enhancements
+                    // this.addMapDecorations(grid);
+                }
+            });
+        },
+    
+        addMapDecorations(grid) {
+            // Remove any existing decorations
+            this.mapViewer.scene.removeChild(this.mapDecorations);
+            
+            // Create new decorations
+            this.mapDecorations = new createjs.Container();
+            
+            // Add grid coordinates
+            for (let x = 0; x < grid.width; x += 10) {
+                for (let y = 0; y < grid.height; y += 10) {
+                    const coordText = new createjs.Text(
+                        `${x},${y}`, 
+                        "8px Arial", 
+                        "#3a3f5c"
+                    );
+                    coordText.x = x;
+                    coordText.y = y;
+                    this.mapDecorations.addChild(coordText);
+                }
+            }
+            
+            this.mapViewer.scene.addChild(this.mapDecorations);
+        },
+
+        updateMapTransform() {
+                console.log(this.scale);
+                if (this.mapGridClient && this.mapViewer && this.mapGridClient.currentGrid) {
+                    const grid = this.mapGridClient.currentGrid
+                    this.mapViewer.scaleToDimensions(grid.width * this.scale, grid.height * this.scale)
+                    this.mapViewer.shift(
+                        (grid.pose.position.x + this.shift) * this.scale,
+                        (grid.pose.position.y - this.shift) * this.scale
+                    )
+                }
+        },
+        setupCurrentPose() {
+            let topic = new ROSLIB.Topic({
+                ros: this.ros,
+                name: '/wh_current_pose',
+                messageType: 'geometry_msgs/PoseStamped'
+            })
+            topic.subscribe((message) => {
+                console.log("current pose callabkc")
+                this.position = message.pose.position
+
+                // Convert quaternion to yaw
+                const q = message.pose.orientation
+                const siny_cosp = 2 * (q.w * q.z + q.x * q.y)
+                const cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
+                const yaw_rad = Math.atan2(siny_cosp, cosy_cosp)
+                this.yaw = yaw_rad * 180 / Math.PI
+            })
+        },
     },
+    // End of Methods
     mounted() {
         // Initialize joystick base dimensions
         this.$nextTick(() => {
@@ -312,6 +551,7 @@ new Vue({
          // Check Glocalization action server status every 5 seconds
         this.serverCheckInterval = setInterval(this.checkActionServer, 500);
         // this.checkActionServer();
+        // this.setupCurrentPose();
 
         this.interval = setInterval(() => {
             if (this.ros != null && this.ros.isConnected) {
