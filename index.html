@@ -11,6 +11,8 @@
         integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
     <!-- ROS stuff -->
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/eventemitter2/lib/eventemitter2.min.js"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/roslib/build/roslib.min.js"></script> -->
+
     <script type="text/javascript" src="https://s3.eu-west-1.amazonaws.com/rosject.io/js/roslib.min.js"></script>
 
     <!-- 3D visualization -->
@@ -55,7 +57,7 @@
         </div>
 
         <div class="panel robot-controls">
-            <div class="panel-title">Velocity Controls</div>
+            <div class="panel-title">CONTROL PANEL</div>
             <div class="control-buttons">
                 <button class="control-btn" @click="moveRobot('left')">
                     <i class="fas fa-arrow-left"></i>
@@ -85,7 +87,7 @@
 
             <!-- Joystick Control -->
             <div class="joystick-container">
-                <div class="joystick-header">Joystick Control</div>
+                <div class="joystick-header">JOYSTICK CONTROL</div>
                 <div class="joystick-base" id="joystick-base">
                     <div class="joystick-axis">
                         <div class="axis-line horizontal"></div>
@@ -94,12 +96,12 @@
                     <div class="joystick-head" id="joystick-head"></div>
                 </div>
                 <div class="status-display">
-                    <div class="velocity-values"> Linear: {{ joystick.vertical.toFixed(2) }} </div>
-                    <div class="velocity-values">Angular: {{ (-joystick.horizontal).toFixed(2) }} </div><br>
+                    <div class="velocity-values"> [{{ joystick.vertical.toFixed(2) }}, {{
+                        (-joystick.horizontal).toFixed(2) }}] </div>
                 </div>
             </div>
 
-            <div class="panel-title">Robot Controls</div>
+            <div class="panel-title">STATE CONTROL</div>
             <div class="localize-control">
                 <button @click="wh_start_request" :disabled="!rosbridge_connected" :class="{
                     'btn-red': wh_status.start==='fail',
@@ -142,9 +144,8 @@
 
         <div class="panel warehouse-map">
             <div class="panel-title">
-                <span class="title-icon">🗺️</span>
-                WAREHOUSE MAP
-                <span class="grid-sector">GRID SECTOR A-12</span>
+                <span class="title-icon">🗺️ WAREHOUSE MAP</span>
+
             </div>
             <div class="map-container">
                 <div class="map-grid-overlay"></div>
@@ -154,14 +155,6 @@
                         <label>MAP SCALE: <span class="value-display">{{ scale.toFixed(2) }}</span></label>
                         <input type="range" min="0.05" max="1.0" step="0.01" v-model.number="scale"
                             class="futuristic-slider">
-                    </div>
-                    <div class="control-buttons">
-                        <button class="control-btn" @click="resetMapView">
-                            <i class="fas fa-crosshairs"></i> CENTER
-                        </button>
-                        <button class="control-btn" @click="toggleGrid">
-                            <i class="fas fa-th"></i> GRID
-                        </button>
                     </div>
                 </div>
             </div>
@@ -178,18 +171,6 @@
                 <div>Goto Ship Pose: {{ wh_status.goto_ship_pose}}</div>
                 <div>Return Home: {{ wh_status.return_home}}</div>
                 <div>Fail Counter: {{ wh_status.fail_count}}</div>
-            </div>
-            <div class="status-indicators">
-                <div class="indicator">
-                    <i class="fas fa-robot"></i>
-                    <div class="indicator-value">3/5</div>
-                    <div class="indicator-label">Active Robots</div>
-                </div>
-                <div class="indicator">
-                    <i class="fas fa-tasks"></i>
-                    <div class="indicator-value">8</div>
-                    <div class="indicator-label">Pending Tasks</div>
-                </div>
             </div>
 
             <div class="panel">

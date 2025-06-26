@@ -4,7 +4,7 @@ new Vue({
         // ROS Connection
         rosbridge_connected: false,
         ros: null,
-        rosbridge_address: 'wss://i-03eec067a3a3209d8.robotigniteacademy.com/87f7f588-75a4-4adb-b16d-15635e901f1f/rosbridge/',
+        rosbridge_address: 'wss://i-0a031721b6e0ade74.robotigniteacademy.com/5915a8c2-beea-4beb-a196-5ad6e28fc5b4/rosbridge/',
         logs: [],
         loading: false,
         port: '9090',
@@ -42,6 +42,8 @@ new Vue({
         interval: null,
         scale: 0.14,
         shift: 0.0,
+        goalPose: null,
+        goalArrow: null,
     },
     watch: {
         scale(val) {
@@ -67,8 +69,8 @@ new Vue({
                 console.log("ROS connected.")
                 this.detectEnvironment()
                 this.read_wh_status()
-                this.setupCurrentPose()
                 this.setupMapViewer()
+                this.setupCurrentPose()
             })
             this.ros.on('error', (error) => {
                 this.logs.unshift((new Date()).toTimeString() + ` - Error: ${error}`)
@@ -442,16 +444,17 @@ new Vue({
         setupMapViewer() {
             this.mapViewer = new ROS2D.Viewer({
                 divID: 'generatedMap',
-                width: 420,
-                height: 360,
+                width: 600,
+                height: 400,
                 // background: '#0f1219'
             });
 
-            // Add some futuristic elements to the scene
+            // Optional border for style
             const border = new createjs.Shape();
             border.graphics.beginStroke("#3a3f5c").drawRect(0, 0, 420, 360);
             this.mapViewer.scene.addChild(border);
 
+            // Setup OccupancyGridClient to load the map
             this.mapGridClient = new ROS2D.OccupancyGridClient({
                 ros: this.ros,
                 rootObject: this.mapViewer.scene,
@@ -459,6 +462,7 @@ new Vue({
                 topic: '/map'
             });
 
+            // When the map is received/updated
             this.mapGridClient.on('change', () => {
                 const grid = this.mapGridClient.currentGrid;
                 if (grid) {
@@ -467,39 +471,82 @@ new Vue({
                         (grid.pose.position.x + this.shift) * this.scale,
                         (grid.pose.position.y - this.shift) * this.scale
                     );
+                this.mapViewer.scene.addEventListener("click", (event) => {
+                    const local = this.mapViewer.stage.globalToLocal(event.stageX, event.stageY);
+                    console.log("Click at stage:", local.x, local.y); // Debug output
+
+                    const mapX = local.x / this.scale + this.mapGridClient.currentGrid.pose.position.x;
+                    const mapY = -local.y / this.scale + this.mapGridClient.currentGrid.pose.position.y;
+
+                    if (!this.goalPose) {
+                        this.goalPose = { x: mapX, y: mapY };
+                        
+                        // Create and add red dot
+                        const redDot = new createjs.Shape();
+                        redDot.graphics.beginFill("red").drawCircle(0, 0, 10);
+                        redDot.x = local.x;
+                        redDot.y = local.y;
+                        redDot.scaleX = 1/this.scale;
+                        redDot.scaleY = 1/this.scale;
+                        
+                        if (!this.markersContainer) {
+                            this.markersContainer = new createjs.Container();
+                            this.mapViewer.scene.addChild(this.markersContainer);
+                        }
+                        
+                        this.markersContainer.addChild(redDot);
+                        console.log(`Added red dot at ${local.x}, ${local.y}`);
+                    } else {
+                        // Calculate orientation
+                        const dx = mapX - this.goalPose.x;
+                        const dy = mapY - this.goalPose.y;
+                        const yawRad = Math.atan2(dy, dx);
+                        
+                        // Create and add blue line
+                        const blueLine = new createjs.Shape();
+                        blueLine.graphics.setStrokeStyle(4)
+                            .beginStroke("blue")
+                            .moveTo(
+                                (this.goalPose.x - this.mapGridClient.currentGrid.pose.position.x) * this.scale,
+                                -(this.goalPose.y - this.mapGridClient.currentGrid.pose.position.y) * this.scale
+                            )
+                            .lineTo(local.x, local.y);
+                            
+                        this.markersContainer.addChild(blueLine);
+                        console.log(`Added blue line from goal to ${local.x}, ${local.y}`);
+                        
+                        this.goalPose = null;
+                    }
                     
-                    // Add some visual enhancements
-                    // this.addMapDecorations(grid);
+                    this.mapViewer.stage.update(); // Force render update
+                });
+
+
+
+
+
+
+                    //  CLICK HANDLER 
+                    // this.mapViewer.scene.addEventListener("click", (event) => {
+                    //     const stageX = event.stageX;
+                    //     const stageY = event.stageY;
+
+                    //     const clickedX = stageX / this.scale;
+                    //     const clickedY = -stageY / this.scale;
+
+                    //     console.log(`Map clicked at: x=${clickedX.toFixed(2)}, y=${clickedY.toFixed(2)}`);
+
+                    //     // Example: drop a yellow dot
+                    //     const marker = new createjs.Shape();
+                    //     marker.graphics.beginFill("yellow").drawCircle(0, 0, 5);
+                    //     marker.x = clickedX * this.scale;
+                    //     marker.y = -clickedY * this.scale;
+                    //     this.mapViewer.scene.addChild(marker);
+                    // });
                 }
             });
         },
-    
-        addMapDecorations(grid) {
-            // Remove any existing decorations
-            this.mapViewer.scene.removeChild(this.mapDecorations);
-            
-            // Create new decorations
-            this.mapDecorations = new createjs.Container();
-            
-            // Add grid coordinates
-            for (let x = 0; x < grid.width; x += 10) {
-                for (let y = 0; y < grid.height; y += 10) {
-                    const coordText = new createjs.Text(
-                        `${x},${y}`, 
-                        "8px Arial", 
-                        "#3a3f5c"
-                    );
-                    coordText.x = x;
-                    coordText.y = y;
-                    this.mapDecorations.addChild(coordText);
-                }
-            }
-            
-            this.mapViewer.scene.addChild(this.mapDecorations);
-        },
-
         updateMapTransform() {
-                console.log(this.scale);
                 if (this.mapGridClient && this.mapViewer && this.mapGridClient.currentGrid) {
                     const grid = this.mapGridClient.currentGrid
                     this.mapViewer.scaleToDimensions(grid.width * this.scale, grid.height * this.scale)
@@ -510,23 +557,64 @@ new Vue({
                 }
         },
         setupCurrentPose() {
-            let topic = new ROSLIB.Topic({
+            this.axisLength = 0.5; // in meters, adjust as needed
+
+            // Create pose listener
+            const poseListener = new ROSLIB.Topic({
                 ros: this.ros,
                 name: '/wh_current_pose',
                 messageType: 'geometry_msgs/PoseStamped'
-            })
-            topic.subscribe((message) => {
-                console.log("current pose callabkc")
-                this.position = message.pose.position
+            });
+
+            // Create robotMarker as a container
+            this.robotMarker = new createjs.Container();
+
+            // Load SVG image
+            const robotImg = new Image();
+            robotImg.src = './images/robot.svg';
+            robotImg.onload = () => {
+                const bmp = new createjs.Bitmap(robotImg);
+
+                // Scale image (tweak as needed to match map)
+                const imgScale = 0.01 * this.scale;
+                bmp.scaleX = imgScale;
+                bmp.scaleY = imgScale;
+
+                // Align image center to rotation point
+                bmp.regX = robotImg.width / 2;
+                bmp.regY = robotImg.height / 2;
+
+                // Add to container and scene
+                this.robotMarker.addChild(bmp);
+                this.robotMarker.visible = false;
+                this.mapViewer.scene.addChild(this.robotMarker);
+            };
+
+            // Subscribe to pose and update robot marker
+            poseListener.subscribe((msg) => {
+                const pos = msg.pose.position;
+                const q = msg.pose.orientation;
+
+                // Save position
+                this.position = pos;
 
                 // Convert quaternion to yaw
-                const q = message.pose.orientation
-                const siny_cosp = 2 * (q.w * q.z + q.x * q.y)
-                const cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
-                const yaw_rad = Math.atan2(siny_cosp, cosy_cosp)
-                this.yaw = yaw_rad * 180 / Math.PI
-            })
+                const siny_cosp = 2 * (q.w * q.z + q.x * q.y);
+                const cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z);
+                const yaw_rad = Math.atan2(siny_cosp, cosy_cosp);
+                const yaw_deg = yaw_rad * (180 / Math.PI);
+
+                this.yaw = yaw_deg;
+
+                // Update marker pose on map
+                this.robotMarker.x = pos.x * this.scale;
+                this.robotMarker.y = -pos.y * this.scale;
+                this.robotMarker.rotation = -yaw_deg; // due to flipped Y-axis
+                this.robotMarker.visible = true;
+            });
         },
+
+
     },
     // End of Methods
     mounted() {
