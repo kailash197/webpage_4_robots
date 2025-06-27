@@ -4,7 +4,7 @@ new Vue({
         // ROS Connection
         rosbridge_connected: false,
         ros: null,
-        rosbridge_address: 'wss://i-0a031721b6e0ade74.robotigniteacademy.com/5915a8c2-beea-4beb-a196-5ad6e28fc5b4/rosbridge/',
+        rosbridge_address: 'wss://i-0c771f89831691b3f.robotigniteacademy.com/bc188532-5c9d-44cd-ba25-a4ef2fd260a3/rosbridge/',
         logs: [],
         loading: false,
         port: '9090',
@@ -44,13 +44,19 @@ new Vue({
         shift: 0.0,
         goalPose: null,
         goalArrow: null,
+
+        //Destination Waypoints
+        wp1: {x: 0.00, y: 0.0, yaw: 0.0},
+        wp2: {x: 0.00, y: 0.0, yaw: 0.0},
+        wp3: {x: 0.00, y: 0.0, yaw: 0.0},
+        wp4: {x: 0.00, y: 0.0, yaw: 0.0},
     },
     watch: {
         scale(val) {
-            this.updateMapTransform()
+            this.updateMapTransform();
         },
         shift(val) {
-            this.updateMapTransform()
+            this.updateMapTransform();
         }
     },
 
@@ -71,6 +77,11 @@ new Vue({
                 this.read_wh_status()
                 this.setupMapViewer()
                 this.setupCurrentPose()
+                this.setupCurrentCartPose()
+                this.setupStaticShipImage1()
+                this.setupStaticShipImage2()
+                this.setupStaticShipImage3()
+                this.setupStaticShipImage4()
             })
             this.ros.on('error', (error) => {
                 this.logs.unshift((new Date()).toTimeString() + ` - Error: ${error}`)
@@ -109,12 +120,20 @@ new Vue({
                     // Simulated environment
                     this.env = 'sim';
                     this.cmdtopic = '/diffbot_base_controller/cmd_vel_unstamped';
+                    this.wp1 = {x: 1.0, y: +5.0, yaw: -0.00};
+                    this.wp2 = {x: 28, y: 10, yaw: -1.57};
+                    this.wp3 = {x: 20.0, y: -10.0, yaw: +1.57};
+                    this.wp4 = {x: 5.2, y: -15.2, yaw: +0.72};
                 } else {
                     // Real environment
                     this.env = 'real';
                     this.cmdtopic = '/cmd_vel';
+                    this.wp1 = {x: -25.0, y: +2.0, yaw: -0.00};
+                    this.wp2 = {x: -11.50, y: +3.0, yaw: -1.57};
+                    this.wp3 = {x: 6.0, y: -20.2, yaw: +0.72};
+                    this.wp4 = {x: -22.0, y: -22.0, yaw: +1.57};
                 }
-                console.log(`Environment: ${this.env}, CMD Topic: ${this.cmdtopic}`);
+                console.log(`Environment: ${this.env}, CMD Topic: ${this.cmdtopic}, wp1: ${this.wp1}`);
             }, (err) => {
                 console.error('Error detecting environment:', err);
                 // Fallback to real
@@ -375,6 +394,36 @@ new Vue({
             wh_goto_ship_pose_pub.publish(startMsg);
             console.log('Sent trigger to /wh_goto_ship');
         },
+        wh_goto_pose_as_B(){
+        const wh_goto_pose_as_B_pub = new ROSLIB.Topic({
+                ros: this.ros,
+                name: '/wh_goto_pose_as',
+                messageType: 'std_msgs/String'
+            });
+            const poseMsg =  new ROSLIB.Message({data: 'poseb'});
+            wh_goto_pose_as_B_pub.publish(poseMsg);
+            console.log('Sent trigger to /wh_goto_pose_as');
+        },
+        wh_goto_pose_as_C(){
+        const wh_goto_pose_as_C_pub = new ROSLIB.Topic({
+                ros: this.ros,
+                name: '/wh_goto_pose_as',
+                messageType: 'std_msgs/String'
+            });
+            const poseMsg =  new ROSLIB.Message({data: 'posec'});
+            wh_goto_pose_as_C_pub.publish(poseMsg);
+            console.log('Sent trigger to /wh_goto_pose_as');
+        },
+        wh_goto_pose_as_D(){
+        const wh_goto_pose_as_D_pub = new ROSLIB.Topic({
+                ros: this.ros,
+                name: '/wh_goto_pose_as',
+                messageType: 'std_msgs/String'
+            });
+            const poseMsg =  new ROSLIB.Message({data: 'posed'});
+            wh_goto_pose_as_D_pub.publish(poseMsg);
+            console.log('Sent trigger to /wh_goto_pose_as');
+        },
 
         wh_return_home_request(){
             const wh_return_home_pub = new ROSLIB.Topic({
@@ -414,18 +463,6 @@ new Vue({
         chargeRobot() {
             showAlert('Charging command sent to robot', 'warning');
         },
-        // Alert notification system
-        showAlert(message, type) {
-            const alert = document.getElementById('alert');
-            alert.querySelector('.alert-message').textContent = message;
-            alert.className = 'alert';
-            alert.classList.add('show', `alert-${type}`);
-
-            setTimeout(() => {
-                alert.classList.remove('show');
-            }, 3000);
-        },
-
         resetMapView() {
             if (this.mapGridClient && this.mapViewer && this.mapGridClient.currentGrid) {
                 const grid = this.mapGridClient.currentGrid;
@@ -445,7 +482,7 @@ new Vue({
             this.mapViewer = new ROS2D.Viewer({
                 divID: 'generatedMap',
                 width: 600,
-                height: 400,
+                height: 600,
                 // background: '#0f1219'
             });
 
@@ -470,79 +507,7 @@ new Vue({
                     this.mapViewer.shift(
                         (grid.pose.position.x + this.shift) * this.scale,
                         (grid.pose.position.y - this.shift) * this.scale
-                    );
-                this.mapViewer.scene.addEventListener("click", (event) => {
-                    const local = this.mapViewer.stage.globalToLocal(event.stageX, event.stageY);
-                    console.log("Click at stage:", local.x, local.y); // Debug output
-
-                    const mapX = local.x / this.scale + this.mapGridClient.currentGrid.pose.position.x;
-                    const mapY = -local.y / this.scale + this.mapGridClient.currentGrid.pose.position.y;
-
-                    if (!this.goalPose) {
-                        this.goalPose = { x: mapX, y: mapY };
-                        
-                        // Create and add red dot
-                        const redDot = new createjs.Shape();
-                        redDot.graphics.beginFill("red").drawCircle(0, 0, 10);
-                        redDot.x = local.x;
-                        redDot.y = local.y;
-                        redDot.scaleX = 1/this.scale;
-                        redDot.scaleY = 1/this.scale;
-                        
-                        if (!this.markersContainer) {
-                            this.markersContainer = new createjs.Container();
-                            this.mapViewer.scene.addChild(this.markersContainer);
-                        }
-                        
-                        this.markersContainer.addChild(redDot);
-                        console.log(`Added red dot at ${local.x}, ${local.y}`);
-                    } else {
-                        // Calculate orientation
-                        const dx = mapX - this.goalPose.x;
-                        const dy = mapY - this.goalPose.y;
-                        const yawRad = Math.atan2(dy, dx);
-                        
-                        // Create and add blue line
-                        const blueLine = new createjs.Shape();
-                        blueLine.graphics.setStrokeStyle(4)
-                            .beginStroke("blue")
-                            .moveTo(
-                                (this.goalPose.x - this.mapGridClient.currentGrid.pose.position.x) * this.scale,
-                                -(this.goalPose.y - this.mapGridClient.currentGrid.pose.position.y) * this.scale
-                            )
-                            .lineTo(local.x, local.y);
-                            
-                        this.markersContainer.addChild(blueLine);
-                        console.log(`Added blue line from goal to ${local.x}, ${local.y}`);
-                        
-                        this.goalPose = null;
-                    }
-                    
-                    this.mapViewer.stage.update(); // Force render update
-                });
-
-
-
-
-
-
-                    //  CLICK HANDLER 
-                    // this.mapViewer.scene.addEventListener("click", (event) => {
-                    //     const stageX = event.stageX;
-                    //     const stageY = event.stageY;
-
-                    //     const clickedX = stageX / this.scale;
-                    //     const clickedY = -stageY / this.scale;
-
-                    //     console.log(`Map clicked at: x=${clickedX.toFixed(2)}, y=${clickedY.toFixed(2)}`);
-
-                    //     // Example: drop a yellow dot
-                    //     const marker = new createjs.Shape();
-                    //     marker.graphics.beginFill("yellow").drawCircle(0, 0, 5);
-                    //     marker.x = clickedX * this.scale;
-                    //     marker.y = -clickedY * this.scale;
-                    //     this.mapViewer.scene.addChild(marker);
-                    // });
+                    );             
                 }
             });
         },
@@ -557,7 +522,6 @@ new Vue({
                 }
         },
         setupCurrentPose() {
-            this.axisLength = 0.5; // in meters, adjust as needed
 
             // Create pose listener
             const poseListener = new ROSLIB.Topic({
@@ -613,8 +577,171 @@ new Vue({
                 this.robotMarker.visible = true;
             });
         },
+        setupCurrentCartPose() {
+            // Create pose listener
+            const cartPoseListener = new ROSLIB.Topic({
+                ros: this.ros,
+                name: '/wh_cart_pose',
+                messageType: 'geometry_msgs/PoseStamped'
+            });
+
+            // Create robotMarker as a container
+            this.cartMarker = new createjs.Container();
+
+            // Load SVG image
+            const cartImg = new Image();
+            cartImg.src = './images/cart.svg';
+            cartImg.onload = () => {
+                const bmp = new createjs.Bitmap(cartImg);
+
+                // Scale image (tweak as needed to match map)
+                const imgScale = 0.02 * this.scale;
+                bmp.scaleX = imgScale;
+                bmp.scaleY = imgScale;
+
+                // Align image center to rotation point
+                bmp.regX = cartImg.width / 2;
+                bmp.regY = cartImg.height / 2;
+
+                // Add to container and scene
+                this.cartMarker.addChild(bmp);
+                this.cartMarker.visible = false;
+                this.mapViewer.scene.addChild(this.cartMarker);
+            };
+
+            // Subscribe to pose and update robot marker
+            cartPoseListener.subscribe((msg) => {
+                const pos = msg.pose.position;
+                const q = msg.pose.orientation;
+
+                // Save position
+                this.position = pos;
+
+                // Convert quaternion to yaw
+                const siny_cosp = 2 * (q.w * q.z + q.x * q.y);
+                const cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z);
+                const yaw_rad = Math.atan2(siny_cosp, cosy_cosp);
+                const yaw_deg = yaw_rad * (180 / Math.PI);
+
+                this.yaw = yaw_deg;
+
+                // Update marker pose on map
+                this.cartMarker.x = pos.x * this.scale;
+                this.cartMarker.y = -pos.y * this.scale;
+                this.cartMarker.rotation = -yaw_deg; // due to flipped Y-axis
+                this.cartMarker.visible = true;
+            });
+        }, 
+        setupStaticShipImage1() {
+            this.shipMarker1 = new createjs.Container();
+            const shipImg1 = new Image(); shipImg1.src = './images/shipA.svg';
+            
+            shipImg1.onload = () => {
+                const bmp = new createjs.Bitmap(shipImg1);
+                const imgScale = 0.012 * this.scale;
+                bmp.scaleX = imgScale;
+                bmp.scaleY = imgScale;
+
+                // Center the image
+                bmp.regX = shipImg1.width / 2;
+                bmp.regY = shipImg1.height / 2;
+
+                // Add to container and scene
+                this.shipMarker1.addChild(bmp);
+                this.mapViewer.scene.addChild(this.shipMarker1); // Fixed: was adding robotMarker
+                
+                // Set static position (ensure wp1 is defined in your data)
+                this.shipMarker1.x = this.wp1.x * this.scale;
+                this.shipMarker1.y = -this.wp1.y * this.scale;
+                this.shipMarker1.rotation = -this.wp1.yaw;
+                this.shipMarker1.visible = true;
+                
+                this.mapViewer.stage.update();
+            };
+        },
+        setupStaticShipImage2() {          
+            this.shipMarker2 = new createjs.Container();
+            const shipImg2 = new Image(); shipImg2.src = './images/shipB.svg';         
+
+            shipImg2.onload = () => {
+                const bmp = new createjs.Bitmap(shipImg2);
+                const imgScale = 0.015 * this.scale;
+                bmp.scaleX = imgScale;
+                bmp.scaleY = imgScale;
+
+                // Center the image
+                bmp.regX = shipImg2.width / 2;
+                bmp.regY = shipImg2.height / 2;
+
+                // Add to container and scene
+                this.shipMarker2.addChild(bmp);
+                this.mapViewer.scene.addChild(this.shipMarker2); // Fixed: was adding robotMarker
+                
+                // Set static position (ensure wp1 is defined in your data)
+                this.shipMarker2.x = this.wp2.x * this.scale;
+                this.shipMarker2.y = -this.wp2.y * this.scale;
+                this.shipMarker2.rotation = -this.wp2.yaw;
+                this.shipMarker2.visible = true;
+                
+                this.mapViewer.stage.update();
+            };
+        },
+        setupStaticShipImage3() {
+            this.shipMarker3 = new createjs.Container();
+            const shipImg3 = new Image(); shipImg3.src = './images/shipC.svg';   
 
 
+            shipImg3.onload = () => {
+                const bmp = new createjs.Bitmap(shipImg3);
+                const imgScale = 0.015 * this.scale;
+                bmp.scaleX = imgScale;
+                bmp.scaleY = imgScale;
+
+                // Center the image
+                bmp.regX = shipImg3.width / 2;
+                bmp.regY = shipImg3.height / 2;
+
+                // Add to container and scene
+                this.shipMarker3.addChild(bmp);
+                this.mapViewer.scene.addChild(this.shipMarker3); // Fixed: was adding robotMarker
+                
+                // Set static position (ensure wp1 is defined in your data)
+                this.shipMarker3.x = this.wp3.x * this.scale;
+                this.shipMarker3.y = -this.wp3.y * this.scale;
+                this.shipMarker3.rotation = -this.wp3.yaw;
+                this.shipMarker3.visible = true;
+                
+                this.mapViewer.stage.update();
+            };
+        },
+        setupStaticShipImage4() {
+            this.shipMarker4 = new createjs.Container();
+            const shipImg4 = new Image(); shipImg4.src = './images/shipD.svg';
+            
+            shipImg4.onload = () => {
+                const bmp = new createjs.Bitmap(shipImg4);
+                const imgScale = 0.015 * this.scale;
+                bmp.scaleX = imgScale;
+                bmp.scaleY = imgScale;
+
+                // Center the image
+                bmp.regX = shipImg4.width / 2;
+                bmp.regY = shipImg4.height / 2;
+
+                // Add to container and scene
+                this.shipMarker4.addChild(bmp);
+                this.mapViewer.scene.addChild(this.shipMarker4); // Fixed: was adding robotMarker
+                
+                // Set static position (ensure wp1 is defined in your data)
+                this.shipMarker4.x = this.wp4.x * this.scale;
+                this.shipMarker4.y = -this.wp4.y * this.scale;
+                this.shipMarker4.rotation = -this.wp4.yaw;
+                this.shipMarker4.visible = true;
+                
+                this.mapViewer.stage.update();
+            };            
+        },
+        
     },
     // End of Methods
     mounted() {
@@ -638,8 +765,6 @@ new Vue({
         });
          // Check Glocalization action server status every 5 seconds
         this.serverCheckInterval = setInterval(this.checkActionServer, 500);
-        // this.checkActionServer();
-        // this.setupCurrentPose();
 
         this.interval = setInterval(() => {
             if (this.ros != null && this.ros.isConnected) {
