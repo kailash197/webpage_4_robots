@@ -4,7 +4,7 @@ new Vue({
         // ROS Connection
         rosbridge_connected: false,
         ros: null,
-        rosbridge_address: 'wss://i-0c771f89831691b3f.robotigniteacademy.com/bc188532-5c9d-44cd-ba25-a4ef2fd260a3/rosbridge/',
+        rosbridge_address: 'wss://i-0506a9b1426a58708.robotigniteacademy.com/bf8543f7-8467-446c-ab46-469b8721aeab/rosbridge/',
         logs: [],
         loading: false,
         port: '9090',
@@ -29,7 +29,8 @@ new Vue({
             search_cart: 'inactive',
             attach_cart: 'inactive',
             goto_ship_pose: 'inactive',
-            return_home: 'inactive'
+            return_home: 'inactive',
+            manual_ship_pose: 'inactive'
         },
 
         // ODOM subscriber data
